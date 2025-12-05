@@ -7,19 +7,71 @@ console.log("ENTERPRISE INTEGRATION: Initializing Springs Lib Maps...");
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 var debugMode = true; // Set to false in production
 
+// Enhanced mobile debug overlay function
+function createMobileDebugOverlay() {
+    var debugDiv = document.createElement('div');
+    debugDiv.id = 'libmaps-debug';
+    debugDiv.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.95);
+        color: #00ff00;
+        padding: 15px;
+        font-family: monospace;
+        font-size: 13px;
+        z-index: 999999;
+        border: 3px solid #ff0000;
+        max-height: 350px;
+        overflow-y: auto;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(255,0,0,0.5);
+    `;
+    debugDiv.innerHTML = '<strong style="color:#ffff00;">🐛 LIBMAPS MOBILE DEBUG</strong><br>';
+    
+    // Add close button
+    var closeBtn = document.createElement('div');
+    closeBtn.innerHTML = '❌';
+    closeBtn.style.cssText = 'position:absolute;top:5px;right:10px;cursor:pointer;color:#fff;font-size:16px;';
+    closeBtn.onclick = function() { debugDiv.style.display = 'none'; };
+    debugDiv.appendChild(closeBtn);
+    
+    document.body.appendChild(debugDiv);
+    return debugDiv;
+}
+
 function debugLog(message, data) {
     if (debugMode) {
         console.log("LIBMAPS DEBUG: " + message, data || "");
         
-        // Create mobile debug overlay for better visibility on mobile
+        // Enhanced mobile debug overlay for better troubleshooting
         if (isMobileDevice) {
-            var debugDiv = document.getElementById('libmaps-debug') || document.createElement('div');
-            if (!document.getElementById('libmaps-debug')) {
-                debugDiv.id = 'libmaps-debug';
-                debugDiv.style.cssText = 'position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.8);color:white;padding:10px;font-size:12px;z-index:99999;max-width:300px;max-height:200px;overflow-y:auto;border-radius:5px;';
-                document.body.appendChild(debugDiv);
-            }
-            debugDiv.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+            setTimeout(function() {
+                try {
+                    var debugDiv = document.getElementById('libmaps-debug');
+                    if (!debugDiv && document.body) {
+                        debugDiv = createMobileDebugOverlay();
+                    }
+                    if (debugDiv) {
+                        var timestamp = new Date().toLocaleTimeString();
+                        var color = message.includes('✓') ? '#00ff00' : 
+                                   message.includes('✗') || message.includes('ERROR') ? '#ff4444' : 
+                                   message.includes('MOBILE') ? '#00ffff' : '#ffffff';
+                        debugDiv.innerHTML += `<div style="color:${color};margin:2px 0;">${timestamp}: ${message}</div>`;
+                        
+                        // Show data if provided
+                        if (data && typeof data === 'object') {
+                            debugDiv.innerHTML += `<div style="color:#888888;margin-left:20px;font-size:11px;">${JSON.stringify(data)}</div>`;
+                        }
+                        
+                        // Auto-scroll to bottom
+                        debugDiv.scrollTop = debugDiv.scrollHeight;
+                    }
+                } catch (e) {
+                    console.error('Mobile debug overlay error:', e);
+                }
+            }, 50);
         }
     }
 }
@@ -28,6 +80,36 @@ debugLog("Mobile device detected: " + isMobileDevice);
 debugLog("User agent: " + navigator.userAgent);
 
 var springyILS = {
+    // DUPLICATE PREVENTION: Track processed items to prevent duplicate buttons
+    processedItems: new Set(),
+    
+    createItemKey: function(call, location, collection) {
+        return (call + '|' + location + '|' + collection).toLowerCase();
+    },
+    
+    isGloballyProcessed: function(call, location, collection) {
+        var key = this.createItemKey(call, location, collection);
+        return this.processedItems.has(key);
+    },
+    
+    markAsProcessed: function(call, location, collection) {
+        var key = this.createItemKey(call, location, collection);
+        this.processedItems.add(key);
+        debugLog("Marked as processed: " + key);
+    },
+    
+    isDuplicateItem: function(potentialItem, existingItems) {
+        for (var i = 0; i < existingItems.length; i++) {
+            var existing = existingItems[i];
+            if (existing.call === potentialItem.call && 
+                existing.location === potentialItem.location && 
+                existing.collection === potentialItem.collection) {
+                return true;
+            }
+        }
+        return false;
+    },
+
     getTitle: function(element) {
         // Try multiple selector strategies for better compatibility
         var titleSelectors = [
@@ -91,9 +173,32 @@ var springyILS = {
     },
     
     scrapeDetailRows: function(items) {
-        debugLog("Starting detail row scraping");
+        debugLog("📋 STARTING: Detail row scraping");
+        debugLog("📱 MOBILE CHECK: isMobileDevice = " + isMobileDevice);
+        debugLog("🌐 USER AGENT: " + navigator.userAgent);
+        debugLog("📏 VIEWPORT: " + window.innerWidth + "x" + window.innerHeight);
         
-        // Try both selector patterns for better compatibility
+        // MOBILE-FIRST APPROACH: If on mobile, try direct call number detection first
+        if (isMobileDevice) {
+            debugLog("📱 MOBILE: Device detected - trying mobile-specific scraping first");
+            debugLog("📱 MOBILE: Current items array length before mobile scraping: " + items.length);
+            
+            items = this.scrapeMobileCallNumbers(items);
+            
+            debugLog("📱 MOBILE: Items array length after mobile scraping: " + items.length);
+            
+            // If mobile scraping found items, use those and skip row-based scraping to prevent duplicates
+            if (items.length > 0) {
+                debugLog("✅ MOBILE: Mobile scraping found " + items.length + " items - skipping row-based scraping to prevent duplicates");
+                return items;
+            } else {
+                debugLog("⚠️ MOBILE: No items found via mobile scraping, falling back to desktop method");
+            }
+        } else {
+            debugLog("💻 DESKTOP: Not a mobile device, using desktop scraping only");
+        }
+        
+        // DESKTOP/FALLBACK: Traditional row-based scraping
         var selectors = [
             ".detailItemsTableRow:not(.libmaps-proc)",
             "tbody .detailItemsTableRow:not(.libmaps-proc)",
@@ -101,7 +206,7 @@ var springyILS = {
             "[class*='detailItems'] tr:not(.libmaps-proc)" // Wildcard selector
         ];
         
-        debugLog("Trying " + selectors.length + " selectors");
+        debugLog("Trying " + selectors.length + " row selectors");
         
         var rows = null;
         for (var i = 0; i < selectors.length && !rows; i++) {
@@ -154,15 +259,31 @@ var springyILS = {
                 
                 console.log(`  Validation - Location: ${locationValid}, Collection: ${collectionValid}, Call: ${callValid}`);
                 
+                // Check if this item is already processed globally to prevent duplicates
+                if (springyILS.isGloballyProcessed(call, location, collection)) {
+                    console.log(`  ✗ Row ${i + 1} already processed globally, skipping`);
+                    continue;
+                }
+                
                 if (callValid && locationValid && collectionValid) {
-                    items.push({
+                    // Create potential item
+                    var potentialItem = {
                         element: row,
                         buttonElement: callElement,
                         location: location,
                         call: call,
                         title: titleText,
                         collection: collection
-                    });
+                    };
+                    
+                    // Check for duplicates within current batch
+                    if (springyILS.isDuplicateItem(potentialItem, items)) {
+                        console.log(`  ✗ Row ${i + 1} is duplicate within current batch, skipping`);
+                        continue;
+                    }
+                    
+                    items.push(potentialItem);
+                    springyILS.markAsProcessed(call, location, collection);
                     console.log(`  ✓ Row ${i + 1} added to items`);
                 } else {
                     console.log(`  ✗ Row ${i + 1} failed validation`);
@@ -173,6 +294,161 @@ var springyILS = {
         }
         
         console.log(`ENTERPRISE: Scraped ${items.length} valid items`);
+        return items;
+    },
+
+    // MOBILE-SPECIFIC: Direct call number detection for mobile devices
+    scrapeMobileCallNumbers: function(items) {
+        debugLog("🔍 MOBILE: Starting mobile-specific call number detection");
+        
+        // Find call number elements directly (mobile DOM structure is different)
+        var callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER:not(.libmaps-processed)');
+        debugLog("🔍 MOBILE: Found " + callElements.length + " unprocessed call elements for mobile");
+        
+        // Debug: Show all call elements found
+        if (callElements.length === 0) {
+            debugLog("❌ MOBILE: No call elements found! Testing alternative selectors...");
+            
+            // Test alternative selectors
+            var altSelectors = [
+                '.detailItemsTable_CALLNUMBER',
+                '.CALLNUMBER',
+                '[class*="CALLNUMBER"]',
+                '[class*="callnumber"]',
+                '.call-number',
+                '.callNumber'
+            ];
+            
+            altSelectors.forEach(function(selector) {
+                var altElements = document.querySelectorAll(selector);
+                debugLog("🔍 MOBILE: Selector '" + selector + "' found " + altElements.length + " elements");
+                if (altElements.length > 0) {
+                    for (var k = 0; k < Math.min(3, altElements.length); k++) {
+                        debugLog("📋 MOBILE: Element " + k + " text: '" + altElements[k].textContent.trim() + "'");
+                    }
+                }
+            });
+        }
+        
+        for (var i = 0; i < callElements.length; i++) {
+            var callElement = callElements[i];
+            var callText = springyMap.extractText(callElement);
+            
+            if (!callText || callText.length === 0) {
+                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - no call text");
+                continue;
+            }
+            
+            // Filter out labels and non-call-number text
+            var invalidCallTexts = [
+                'Shelf Number',
+                'Call Number', 
+                'Location',
+                'Collection',
+                'Library',
+                'Status',
+                'Due Date'
+            ];
+            
+            var isInvalidCall = invalidCallTexts.some(function(invalid) {
+                return callText.toLowerCase().includes(invalid.toLowerCase());
+            });
+            
+            if (isInvalidCall) {
+                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - detected as label: '" + callText + "'");
+                continue;
+            }
+            
+            // Additional validation: Real call numbers usually contain letters and numbers
+            if (callText.length < 3 || !/[A-Za-z]/.test(callText) || !/[0-9]/.test(callText)) {
+                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - doesn't look like call number: '" + callText + "'");
+                continue;
+            }
+            
+            debugLog("✅ MOBILE: Processing valid call element " + (i + 1) + ": " + callText);
+            
+            // Mark DOM element as processed immediately to prevent duplicates
+            callElement.classList.add('libmaps-processed');
+            
+            // Find container for this call element
+            var container = callElement.closest('tr') || callElement.closest('div') || callElement.parentElement;
+            
+            if (!container) {
+                debugLog("No container found for call element " + (i + 1));
+                continue;
+            }
+            
+            // Look for library and collection elements in the same container
+            var libraryElement = container.querySelector('.detailItemsTable_LIBRARY') || 
+                                container.querySelector('[class*="LIBRARY"]') ||
+                                container.querySelector('[class*="library"]');
+                                
+            var collectionElement = container.querySelector('.detailItemsTable_SD_HZN_COLLECTION') ||
+                                   container.querySelector('[class*="COLLECTION"]') ||
+                                   container.querySelector('[class*="collection"]');
+            
+            // Extract data with defaults for mobile
+            var location = 'David O. McKay Library'; // Default for mobile
+            if (libraryElement) {
+                var locationElement = libraryElement.querySelector(".asyncFieldLIBRARY:last-of-type") ||
+                                     libraryElement.querySelector(".asyncFieldLIBRARY") ||
+                                     libraryElement;
+                location = springyMap.extractText(locationElement) || location;
+            }
+            
+            var collection = 'General Books'; // Default for mobile
+            if (collectionElement) {
+                collection = springyMap.extractCollectionText(collectionElement) || collection;
+            }
+            
+            var titleText = springyILS.getTitle() ? springyMap.extractText(springyILS.getTitle()) : document.title;
+            
+            debugLog("Mobile item " + (i + 1) + " extracted data:", {
+                call: callText,
+                location: location,
+                collection: collection,
+                title: titleText
+            });
+            
+            // Validate
+            var locationValid = springyMap.isValidLocation(location);
+            var collectionValid = springyMap.isValidCollection(collection);
+            var callValid = callText && callText.length > 0;
+            
+            debugLog("Mobile validation - Location: " + locationValid + ", Collection: " + collectionValid + ", Call: " + callValid);
+            
+            // Check if this item is already processed globally to prevent duplicates
+            if (springyILS.isGloballyProcessed(callText, location, collection)) {
+                debugLog("✗ Mobile item " + (i + 1) + " already processed globally, skipping");
+                continue;
+            }
+            
+            if (callValid && locationValid && collectionValid) {
+                // Create potential item
+                var potentialItem = {
+                    element: container || callElement,
+                    buttonElement: callElement,
+                    location: location,
+                    call: callText,
+                    title: titleText,
+                    collection: collection
+                };
+                
+                // Check for duplicates within current batch
+                if (springyILS.isDuplicateItem(potentialItem, items)) {
+                    debugLog("✗ Mobile item " + (i + 1) + " is duplicate within current batch, skipping");
+                    continue;
+                }
+                
+                items.push(potentialItem);
+                springyILS.markAsProcessed(callText, location, collection);
+                debugLog("✓ Mobile item " + (i + 1) + " added to items");
+            } else {
+                debugLog("✗ Mobile item " + (i + 1) + " failed validation");
+            }
+        }
+        
+        debugLog("Mobile scraping complete - found " + items.length + " valid mobile items");
         return items;
     },
     
@@ -625,16 +901,26 @@ var springyMap = {
     };
     
     function initializeLibMaps() {
-        debugLog("Initializing LibMaps");
-        debugLog("Document ready state: " + document.readyState);
+        debugLog("🚀 INIT: Initializing LibMaps");
+        debugLog("📄 INIT: Document ready state: " + document.readyState);
+        debugLog("📱 INIT: Mobile device: " + isMobileDevice);
+        debugLog("🔗 INIT: Current URL: " + window.location.href);
+        debugLog("📏 INIT: Viewport: " + window.innerWidth + "x" + window.innerHeight);
         
-        debugLog("Injecting styles");
+        // Quick DOM check
+        var totalElements = document.querySelectorAll('*').length;
+        var callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER').length;
+        var libraryElements = document.querySelectorAll('.detailItemsTable_LIBRARY').length;
+        
+        debugLog("🔍 INIT: DOM elements - Total: " + totalElements + ", Call: " + callElements + ", Library: " + libraryElements);
+        
+        debugLog("🎨 INIT: Injecting styles");
         springyMap.injectStyles(document.head, springyMap.siteConfig.css);
         
-        debugLog("Starting watcher");
+        debugLog("⏰ INIT: Starting watcher");
         springyMap.watch();
         
-        debugLog("Integration initialized successfully");
+        debugLog("✅ INIT: Integration initialized successfully");
     }
     
     // Multiple DOM ready strategies for better mobile compatibility
