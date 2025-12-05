@@ -1,26 +1,36 @@
 // sirsiDynix Enterprise - Springs Lib Maps Integration
-// Production Version - Mobile Compatible with Duplicate Prevention
+// Step 4: Desktop Working + Mobile Timing + Enterprise Mobile HTML + Duplicate Prevention + Mobile Button Enhancements
 
+(function() {
 console.log("ENTERPRISE INTEGRATION: Initializing Springs Lib Maps...");
 
 // Mobile detection
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+
+
 var springyILS = {
-    // Global processed items tracking for duplicate prevention
+    // STEP 4 ENHANCEMENT: Global processed items tracking
     processedItems: new Set(),
     
+    createItemKey: function(call, location, collection) {
+        return call+"|"+location+"|"+collection;
+    },
+    
     isGloballyProcessed: function(call, location, collection) {
+        // STEP 4.2: Check by call number only for simpler deduplication
         return springyILS.processedItems.has(call);
     },
     
     markAsProcessed: function(call, location, collection) {
+        // STEP 4.2: Track by call number only
         springyILS.processedItems.add(call);
     },
     
     getTitle: function(element) {
         // Try multiple selector strategies for better compatibility
         var titleSelectors = [
+            // Most specific first - actual title content
             ".displayElementText.text-p.INITIAL_TITLE_SRCH",
             ".displayElementText.INITIAL_TITLE_SRCH", 
             ".detail_biblio_title",
@@ -32,12 +42,14 @@ var springyILS = {
         for (var i = 0; i < titleSelectors.length; i++) {
             var title = document.querySelector(titleSelectors[i]);
             if (title && title.textContent && title.textContent.trim()) {
+                var titleText = title.textContent.trim();
                 return title;
             }
         }
         
         // Try alternative selectors for different page layouts
         var alternativeSelectors = [
+            // Look for any element with title-related content
             "[class*='TITLE']:not([class*='label']):not([class*='_label'])",
             ".detail_biblio .INITIAL_TITLE_SRCH",
             "#detail_biblio0 .INITIAL_TITLE_SRCH"
@@ -55,10 +67,12 @@ var springyILS = {
             }
         }
         
-        // Final fallback: use document title
+        // Final fallback: use document title (remove " - Library Name" suffix if present)
         var docTitle = document.title;
         if (docTitle) {
+            // Clean up common title suffixes
             docTitle = docTitle.replace(/ - .*$/, '').trim();
+            // Create a virtual element to return consistent interface
             var virtualTitle = {
                 textContent: docTitle,
                 innerText: docTitle
@@ -69,8 +83,9 @@ var springyILS = {
         return null;
     },
     
-    // Duplicate prevention - focuses on call number only
+    // STEP 4 ENHANCEMENT: Duplicate prevention - now focuses on call number only
     isDuplicateItem: function(newItem, existingItems) {
+        // Check if this call number already exists (regardless of location/collection)
         for (var i = 0; i < existingItems.length; i++) {
             var existing = existingItems[i];
             if (existing.call === newItem.call) {
@@ -80,12 +95,13 @@ var springyILS = {
         return false;
     },
     
-    // Enterprise Mobile HTML Structure Detection
+    // Enterprise Mobile HTML Structure Detection from Step 3
     scrapeMobileEnterpriseStructure: function(items) {
+        
         // Look for Enterprise mobile pattern: .detailItemsTable_CALLNUMBER elements directly
         var allCallElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER:not(.libmaps-processed)');
         
-        // Filter out label elements, keep only value elements
+        // STEP 4.4: Filter out label elements, keep only value elements
         var callElements = [];
         for (var j = 0; j < allCallElements.length; j++) {
             var element = allCallElements[j];
@@ -98,11 +114,13 @@ var springyILS = {
                 continue;
             }
             
-            // Keep actual call numbers
+            // Keep actual call numbers (they should have alphanumeric patterns)
             if (text && text.length > 0) {
                 callElements.push(element);
             }
         }
+        
+        
         
         if (callElements.length === 0) {
             return items;
@@ -115,19 +133,15 @@ var springyILS = {
             var callText = callElement.textContent.trim();
             if (!callText) continue;
             
-            // Check if call number already processed
-            if (springyILS.isGloballyProcessed(callText, null, null)) {
-                continue;
-            }
-            
             // Find the container row/element for this call number
             var container = callElement.closest('tr') || callElement.closest('div') || callElement.parentElement;
             
-            // Look for library/location info near this call element
+            // Mobile uses DIV structure, need to look for collection info differently
             var libraryElement = null;
             var collectionElement = null;
             
             if (container) {
+                // Try to find library and collection elements in the same container
                 libraryElement = container.querySelector('.detailItemsTable_LIBRARY') || 
                                 container.querySelector('[class*="LIBRARY"]') ||
                                 container.querySelector('[class*="library"]');
@@ -149,11 +163,15 @@ var springyILS = {
             var collection = 'General Books'; // Default for mobile
             if (collectionElement) {
                 collection = springyMap.extractCollectionText(collectionElement) || collection;
+            } else {
             }
             
             var titleText = springyILS.getTitle() ? springyMap.extractText(springyILS.getTitle()) : document.title;
             
-            // Create potential item
+                // STEP 4.2 ENHANCEMENT: Check if call number already processed
+                if (springyILS.isGloballyProcessed(callText, location, collection)) {
+                    continue;
+                }            // Create potential item
             var potentialItem = {
                 element: container || callElement,
                 buttonElement: callElement,
@@ -163,10 +181,12 @@ var springyILS = {
                 collection: collection
             };
             
-            // Check for duplicates within current batch
+            // Check if this is a duplicate within current items
             if (springyILS.isDuplicateItem(potentialItem, items)) {
                 continue;
             }
+            
+            
             
             // Validate
             var locationValid = springyMap.isValidLocation(location);
@@ -176,6 +196,7 @@ var springyILS = {
             if (callValid && locationValid && collectionValid) {
                 items.push(potentialItem);
                 springyILS.markAsProcessed(callText, location, collection);
+            } else {
             }
         }
         
@@ -183,7 +204,8 @@ var springyILS = {
     },
     
     scrapeDetailRows: function(items) {
-        // Try Enterprise mobile structure FIRST on mobile
+        
+        // STEP 4 ENHANCEMENT: Try Enterprise mobile structure FIRST on mobile
         if (isMobileDevice) {
             items = springyILS.scrapeMobileEnterpriseStructure(items);
         }
@@ -195,12 +217,12 @@ var springyILS = {
             ".detailItemsTable tr:not(.libmaps-proc)"
         ];
         
-        // Add mobile-specific selectors
+        // Add mobile-specific selectors from Step 2
         if (isMobileDevice) {
             selectors.push(
-                "[class*='detailItems'] tr:not(.libmaps-proc)",
-                ".detailItemsTable_CALLNUMBER:not(.libmaps-proc)",
-                "[class*='detailItemsTable_CALLNUMBER']:not(.libmaps-proc)"
+                "[class*='detailItems'] tr:not(.libmaps-proc)", // Wildcard selector
+                ".detailItemsTable_CALLNUMBER:not(.libmaps-proc)", // Direct call number elements  
+                "[class*='detailItemsTable_CALLNUMBER']:not(.libmaps-proc)" // Wildcard call number
             );
         }
         
@@ -216,7 +238,10 @@ var springyILS = {
             return items;
         }
         
+        
+        
         for (let i = 0; i < rows.length; i++) {
+            
             var row = rows[i];
             var title = springyILS.getTitle(row);
             var callElement = row.querySelector(".detailItemsTable_CALLNUMBER");
@@ -226,7 +251,7 @@ var springyILS = {
             if (callElement && libraryElement) {
                 row.classList.add("libmaps-proc");
                 
-                // Extract location
+                // Extract location - try multiple approaches
                 var locationElement = libraryElement.querySelector(".asyncFieldLIBRARY:last-of-type") ||
                                      libraryElement.querySelector(".asyncFieldLIBRARY") ||
                                      libraryElement;
@@ -236,8 +261,9 @@ var springyILS = {
                 var collection = springyMap.extractCollectionText(collectionElement);
                 var titleText = springyMap.extractText(title);
                 
-                // Check if call number already processed
+                // STEP 4.2 ENHANCEMENT: Check if call number already processed
                 if (springyILS.isGloballyProcessed(call, location, collection)) {
+                    console.log(`  ✗ Row ${i + 1} call number already processed: ${call}`);
                     continue;
                 }
                 
@@ -253,6 +279,7 @@ var springyILS = {
                 
                 // Check for duplicates within current batch
                 if (springyILS.isDuplicateItem(potentialItem, items)) {
+                    console.log(`  ✗ Row ${i + 1} is duplicate within current batch, skipping`);
                     continue;
                 }
                 
@@ -264,252 +291,13 @@ var springyILS = {
                 if (callValid && locationValid && collectionValid) {
                     items.push(potentialItem);
                     springyILS.markAsProcessed(call, location, collection);
+                } else {
                 }
+            } else {
             }
         }
         
         return items;
-    },
-
-    scrapeDom: function() {
-        return springyILS.scrapeDetailRows([]);
-    },
-
-    attachButton: function(item, buttonDiv) {
-        var targetElement = item.buttonElement || item.element;
-        
-        // Check if button already exists to prevent duplicates
-        var existingButton = targetElement ? targetElement.querySelector('.springy-button-div') : null;
-        if (existingButton) {
-            return;
-        }
-        
-        if (targetElement) {
-            targetElement.appendChild(buttonDiv);
-        }
-    },
-
-    setupListeners: function() {
-        // Reserved for future use
-    }
-};
-
-var springyMap = {
-    callbackId: 1,
-    siteConfig: {},
-    
-    cleanText: function(text) {
-        if (!text) return "";
-        
-        // Clean and normalize text
-        var cleaned = text.trim()
-            .replace(/\n/g, " ")
-            .replace(/\s+/g, " ")
-            .replace(/Unknown$/, "")
-            .replace(/\s+$/, "");
-        
-        return cleaned;
-    },
-    
-    extractText: function(element) {
-        if (!element) return "";
-        
-        var text = "";
-        if (element.textContent) {
-            text = element.textContent;
-        } else if (element.innerText) {
-            text = element.innerText;
-        }
-        
-        return springyMap.cleanText(text);
-    },
-    
-    extractCollectionText: function(collectionElement) {
-        if (!collectionElement) return "";
-        
-        var rawText = springyMap.extractText(collectionElement);
-        var cleaned = springyMap.cleanText(rawText);
-        
-        if (!cleaned) return cleaned;
-        
-        var validCollections = Object.keys(springyMap.siteConfig.validCollectionNameMap);
-        
-        for (var i = 0; i < validCollections.length; i++) {
-            var validCollection = validCollections[i];
-            if (cleaned.toLowerCase().includes(validCollection.toLowerCase())) {
-                return validCollection;
-            }
-        }
-        
-        return cleaned;
-    },
-
-    normalizeLocationForService: function(location) {
-        // Map internal location names to what the Springs service expects
-        var locationMap = {
-            'David O. McKay Library': 'McKay Library',
-            'David O McKay Library': 'McKay Library',
-            'McKay Library': 'McKay Library'
-        };
-        
-        return locationMap[location] || location;
-    },
-
-    injectStyles: function(head, css) {
-        var style = document.createElement("style");
-        style.type = "text/css";
-        style.innerText = css;
-        head.insertBefore(style, head.firstChild);
-    },
-
-    createModal: function(item, params) {
-        var url = springyMap.siteConfig.domain + "/libmaps/catalog?" + params.toString();
-        var html = springyMap.siteConfig.getModalHtml(item, url);
-        var div = document.createElement("div");
-        div.insertAdjacentHTML("afterbegin", html);
-        return div;
-    },
-
-    createIcon: function() {
-        var iconSvg = springyMap.siteConfig.button.icon;
-        if (iconSvg.length === 0) return null;
-        
-        return (new DOMParser()).parseFromString(iconSvg, "application/xml").documentElement;
-    },
-
-    createKeyHandler: function() {
-        return function(event) {
-            if (event.keyCode === 13) { // Enter key
-                event.stopPropagation();
-                this.click();
-            }
-        };
-    },
-
-    createModalClickHandler: function(item, params) {
-        return function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            if (!item.modal) {
-                var modalDiv = springyMap.createModal(item, params);
-                item.modal = document.body.appendChild(modalDiv);
-                
-                // Close button handler
-                item.modal.querySelector(".springy-close").addEventListener("click", function() {
-                    item.modal.querySelector(".springy-underlay").classList.remove("springy-underlay-active");
-                    item.modal.querySelector(".springy-modal").classList.remove("springy-modal-active");
-                });
-                
-                // Print button handler
-                item.modal.querySelector(".springy-print").addEventListener("click", function() {
-                    window.open(
-                        springyMap.siteConfig.domain + "/libmaps/call/print?" + params.toString(),
-                        item.call,
-                        "height=860,width=630"
-                    );
-                });
-            }
-            
-            item.modal.querySelector(".springy-underlay").classList.add("springy-underlay-active");
-            item.modal.querySelector(".springy-modal").classList.add("springy-modal-active");
-        };
-    },
-
-    createButton: function(item) {
-        var icon = springyMap.createIcon();
-        var label = document.createTextNode(springyMap.siteConfig.button.label);
-        var params = new URLSearchParams();
-        
-        params.set("call", item.call);
-        params.set("location", springyMap.normalizeLocationForService(item.location));
-        params.set("collection", item.collection || "");
-        params.set("title", item.title || "");
-        
-        if (springyMap.siteConfig.isModalWanted) {
-            var button = document.createElement("button");
-            button.setAttribute("type", "button");
-            button.classList.add("springy-button");
-            
-            // Mobile-friendly button styling
-            if (isMobileDevice) {
-                button.style.cssText = 'padding:10px 15px;font-size:16px;min-height:44px;touch-action:manipulation;';
-            }
-            
-            if (icon !== null) button.appendChild(icon);
-            button.appendChild(label);
-            
-            button.onclick = springyMap.createModalClickHandler(item, params);
-            button.addEventListener("keydown", springyMap.createKeyHandler());
-            
-            return button;
-        } else {
-            var link = document.createElement("a");
-            link.classList.add("springy-button");
-            
-            // Mobile-friendly link styling
-            if (isMobileDevice) {
-                link.style.cssText = 'padding:10px 15px;font-size:16px;min-height:44px;touch-action:manipulation;display:inline-block;';
-            }
-            
-            if (icon !== null) link.appendChild(icon);
-            link.appendChild(label);
-            link.setAttribute("target", "_blank");
-            link.href = springyMap.siteConfig.domain + "/libmaps/catalog/full?" + params.toString();
-            
-            link.addEventListener("click", function(event) {
-                event.stopPropagation();
-                this.blur();
-                return false;
-            });
-            link.addEventListener("keydown", springyMap.createKeyHandler());
-            
-            return link;
-        }
-    },
-
-    isValidLocation: function(location) {
-        if (springyMap.siteConfig.isUsingFixedLocation) {
-            return true;
-        }
-        
-        if (!location || location.length === 0) {
-            return false;
-        }
-        
-        var normalizedLocation = location.trim();
-        return springyMap.siteConfig.validLocationNameMap[normalizedLocation] === true;
-    },
-
-    isValidCollection: function(collection) {
-        if (!springyMap.siteConfig.isValidCollectionRequired) {
-            return true;
-        }
-        
-        if (!collection || collection.length === 0) {
-            return false;
-        }
-        
-        var normalizedCollection = collection.trim();
-        return springyMap.siteConfig.validCollectionNameMap[normalizedCollection] === true;
-    },
-
-    setupButtons: function(items) {
-        for (let i = 0; i < items.length; i++) {
-            var item = items[i];
-            
-            if (item.call.length !== 0 && 
-                springyMap.isValidLocation(item.location) && 
-                springyMap.isValidCollection(item.collection)) {
-                
-                var button = springyMap.createButton(item);
-                var buttonDiv = document.createElement("div");
-                buttonDiv.classList.add("springy-button-div");
-                buttonDiv.insertAdjacentElement("afterbegin", button);
-                
-                springyILS.attachButton(item, buttonDiv);
-            }
-        }
     },
 
     scrapeDomGeneric: function() {
@@ -523,7 +311,9 @@ var springyMap = {
             var callNumber = element.dataset.callnumber || "";
             var location = element.dataset.location || "";
             
-            if (callNumber.length !== 0 && location.length !== 0) {
+            if (callNumber.length !== 0 && 
+                location.length !== 0) {
+                
                 items.push({
                     element: element,
                     buttonElement: element,
@@ -539,29 +329,41 @@ var springyMap = {
     },
 
     scrape: function() {
+        console.log("ENTERPRISE: Starting scrape process...");
+        
         var items = springyMap.siteConfig.isGenericScrapeWanted ? 
                    springyMap.scrapeDomGeneric() : 
                    springyILS.scrapeDom();
         
         springyMap.setupButtons(items);
+        console.log("ENTERPRISE: Scrape completed");
+        
         return items;
     },
 
-    // Mobile-Aware DOM Timing
+    // Mobile-Aware DOM Timing from Step 2
     watch: function() {
+        debugLog("Starting DOM watcher");
+        
         var attempts = 0;
-        var maxAttempts = isMobileDevice ? 60 : 30;
-        var interval = isMobileDevice ? 750 : 500;
+        // Mobile-specific timing parameters from Step 2
+        var maxAttempts = isMobileDevice ? 60 : 30;  // More attempts for mobile
+        var interval = isMobileDevice ? 750 : 500;   // Longer intervals for mobile
+        
+        debugLog("Watcher config - maxAttempts: " + maxAttempts + ", interval: " + interval + "ms");
         
         var watcher = setInterval(function() {
             attempts++;
+            debugLog("Watch attempt " + attempts + "/" + maxAttempts);
             
+            // Enhanced mobile selector strategy from Step 2
             var targetElement = document.querySelector(".detailItemsTableRow") ||
                               document.querySelector("tbody .detailItemsTableRow") ||
                               document.querySelector(".detailItemsTable");
             
-            // Additional mobile fallback selectors
+            // Additional mobile fallback selectors from Step 2
             if (!targetElement && isMobileDevice) {
+                debugLog("Trying mobile fallback selectors...");
                 targetElement = document.querySelector(".detailItems") ||
                               document.querySelector("[class*='detailItems']") ||
                               document.querySelector(".detailItemsTable_CALLNUMBER") ||
@@ -569,19 +371,25 @@ var springyMap = {
             }
             
             if (targetElement) {
+                debugLog("Target elements found, initializing scrape");
                 clearInterval(watcher);
                 
+                // Longer render delay for mobile from Step 2
                 var renderDelay = isMobileDevice ? 1500 : 750;
+                debugLog("Using render delay: " + renderDelay + "ms");
                 
                 setTimeout(function() {
                     springyMap.scrape();
                 }, renderDelay);
                 
             } else if (attempts >= maxAttempts) {
+                debugLog("Watch timeout - target elements not found after " + maxAttempts + " attempts");
                 clearInterval(watcher);
                 
+                // Longer fallback delay for mobile from Step 2
                 var fallbackDelay = isMobileDevice ? 2000 : 1000;
                 setTimeout(function() {
+                    debugLog("Attempting generic scrape as fallback");
                     springyMap.siteConfig.isGenericScrapeWanted = true;
                     springyMap.scrape();
                 }, fallbackDelay);
@@ -591,7 +399,6 @@ var springyMap = {
 };
 
 // Configuration and initialization
-(function() {
     console.log("ENTERPRISE: Configuring Springs Lib Maps integration...");
     
     springyMap.siteConfig = {
@@ -600,12 +407,15 @@ var springyMap = {
         isUsingFixedLocation: 0,
         isValidCollectionRequired: 1,
         
+        // Updated location mapping to handle potential variations
+        // We accept these location names from the DOM extraction
         validLocationNameMap: {
             'David O. McKay Library': true,
             'McKay Library': true,
-            'David O McKay Library': true
+            'David O McKay Library': true // Alternative without periods
         },
         
+        // Comprehensive collection mapping
         validCollectionNameMap: {
             'Audio Books': true,
             'CD': true,
@@ -614,33 +424,32 @@ var springyMap = {
             'General Books': true,
             'General Books - 1st Floor': true,
             'Juvenile Literature': true,
-            'LP Records - Special Collections': true,
             'Map': true,
-            'Microfilm - Special Collections': true,
-            'Manuscripts - Special Collections': true,
+            'MCF- Microfilm': true,
+            'MSS-Manuscripts': true,
             'Oversize Books': true,
             'Oversize Juvenile': true,
             'Popular Books': true,
-            'Reserve Area': true,
+            'Reserve Collection': true,
             'Sheet Music': true,
             'SP+ Special Collections Oversized': true,
-            'Special Coll.-Campus Authors': true,
-            'Special Coll.-Caxton Press': true,
-            'Special Coll.-Church History': true,
-            'Special Coll.-Education Collection': true,
-            'Special Coll.-Greater Yellowstone Ecosystem': true,
-            'Special Coll.-Hinckley Music Collection': true,
-            'Special Coll.-Historical Literature and Reference': true,
-            'Special Coll.-Music': true,
-            'Special Coll.-Printing Reference': true,
-            'Special Coll.-Scriptures': true,
-            'Special Coll.-Upper Snake River Valley History': true,
-            'Special Coll.-Vardis Fisher': true,
+            'SPC- Campus Authors': true,
+            'SPC- Caxton Press': true,
+            'SPC- Church History': true,
+            'SPC- Education Collection': true,
+            'SPC- Greater Yellowstone': true,
+            'SPC- Hinckley Music Collection': true,
+            'SPC- Historical Literature and Reference': true,
+            'SPC- Music': true,
+            'SPC- Printing Reference': true,
+            'SPC- Scriptures': true,
+            'SPC- Upper Snake River Valley': true,
+            'SPC- Vardis Fisher': true,
             'Special Collections': true,
             'Teacher Learning Center': true,
             'Technical Services': true,
-            'Univ. Archives-Campus Publications': true,
-            'Univ. Archives-Campus Speeches': true
+            'UA- PUB- University Archives- Campus Publications': true,
+            'UA- SPE- University Archives- Campus Speeches': true
         },
         
         button: {
@@ -653,13 +462,29 @@ var springyMap = {
         isGenericScrapeWanted: 0,
         
         getModalHtml: function(item, url) {
-            return `<div class="springy-underlay"><div class="springy-modal" data-location="${item.location}" data-zone="${item.zone}" data-call="${item.call}" tabindex="0"><div class="springy-header"><h1>${item.title}</h1><div class="springy-header-buttons"><button class="springy-print" aria-label="Print Map"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64-208l0 144-448 0 0-144 448 0z"/></svg></button><button class="springy-close" aria-label="Close Map">×</button></div></div><div class="springy-body"><iframe src="${url}" title="LibMaps for ${item.title}"></iframe></div></div></div>`;
+            // Escape HTML to prevent XSS attacks
+            var escapeHtml = function(text) {
+                var div = document.createElement('div');
+                div.textContent = text || '';
+                return div.innerHTML;
+            };
+            
+            var escapedLocation = escapeHtml(item.location);
+            var escapedZone = escapeHtml(item.zone || '');
+            var escapedCall = escapeHtml(item.call);
+            var escapedTitle = escapeHtml(item.title);
+            var escapedUrl = encodeURI(url || '');
+            
+            return `<div class="springy-underlay"><div class="springy-modal" data-location="${escapedLocation}" data-zone="${escapedZone}" data-call="${escapedCall}" tabindex="0"><div class="springy-header"><h1>${escapedTitle}</h1><div class="springy-header-buttons"><button class="springy-print" aria-label="Print Map"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64-208l0 144-448 0 0-144 448 0z"/></svg></button><button class="springy-close" aria-label="Close Map">×</button></div></div><div class="springy-body"><iframe src="${escapedUrl}" title="LibMaps for ${escapedTitle}"></iframe></div></div></div>`;
         },
         
-        css: '.springy-button-div { display: inline-block; } .springy-button { text-indent: 0; cursor: pointer; position: relative; padding: 6px 12px 6px 6px; box-sizing: border-box; border-width: 0; border-radius: 6px; color: #FFFFFF; background-color: #337AB7; display: inline-block; white-space: nowrap; line-height: 16px; } a.springy-button { color: #FFFFFF; text-decoration: none; } .springy-button:hover { color: #FFFFFF; background-color: #286090; } a.springy-button:hover { color: #FFFFFF; background-color: #286090; } .springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } a.springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } .springy-icon { width: 16px; height: 16px; fill: currentColor; margin-right: 6px; } .springy-underlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9998; display: none; } .springy-underlay-active { display: flex; align-items: center; justify-content: center; } .springy-modal { background: #fff; border-radius: 6px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.3); max-width: 90%; max-height: 90%; width: 800px; height: 600px; display: flex; flex-direction: column; } .springy-modal-active { display: flex; } .springy-header { padding: 15px 20px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; } .springy-header h1 { font-size: 20px; margin: 0; color: #333; } .springy-header-buttons { display: flex; gap: 10px; } .springy-print, .springy-close { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; } .springy-print { background: #007cba; color: white; } .springy-close { background: #6c757d; color: white; } .springy-body { flex: 1; padding: 0; } .springy-body iframe { width: 100%; height: 100%; border: none; }'
+        css: '.springy-button-div { display: inline-block; } .springy-button { text-indent: 0; cursor: pointer; position: relative; padding: 6px 12px 6px 6px; box-sizing: border-box; border-width: 0; border-radius: 6px; color: #FFFFFF; background-color: #337AB7; display: inline-block; white-space: nowrap; line-height: 16px; } a.springy-button { color: #FFFFFF; text-decoration: none; } .springy-button:hover { color: #FFFFFF; background-color: #286090; } a.springy-button:hover { color: #FFFFFF; background-color: #286090; } .springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } a.springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } .springy-icon { width: 16px; height: 16px; fill: currentColor; margin-right: 6px; } .springy-underlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 99999; display: none; } .springy-underlay-active { display: flex; align-items: center; justify-content: center; padding: 10px; } .springy-modal { background: #fff; border-radius: 6px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.3); max-width: 95vw; max-height: 95vh; width: 800px; height: 600px; display: flex; flex-direction: column; position: relative; } .springy-modal-active { display: flex; } .springy-header { padding: 10px 15px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; } .springy-header h1 { font-size: 18px; margin: 0; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .springy-header-buttons { display: flex; gap: 8px; flex-shrink: 0; } .springy-print, .springy-close { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; min-height: 32px; } .springy-print { background: #007cba; color: white; } .springy-close { background: #6c757d; color: white; } .springy-body { flex: 1; padding: 0; overflow: hidden; } .springy-body iframe { width: 100%; height: 100%; border: none; }'
     };
     
+    console.log("ENTERPRISE: Injecting styles...");
     springyMap.injectStyles(document.head, springyMap.siteConfig.css);
+    
+    console.log("ENTERPRISE: Starting watcher...");
     springyMap.watch();
     
     console.log("ENTERPRISE: Integration initialized successfully");
