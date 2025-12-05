@@ -226,7 +226,7 @@ testRunner.test('DOM Element Detection', () => {
     console.log('   ✓ DOM detection completed');
 });
 
-// Test 10: Button Attachment Prevention
+// Test 10: Button Duplicate Prevention
 testRunner.test('Button Duplicate Prevention', () => {
     const callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER');
     
@@ -245,6 +245,181 @@ testRunner.test('Button Duplicate Prevention', () => {
     } else {
         console.log('   ⚠️ No call elements to test button duplication');
     }
+});
+
+// Test 11: Mobile-Specific Functionality
+testRunner.test('Mobile Detection and Functions', () => {
+    if (typeof isMobileDevice === 'undefined') {
+        throw new Error('isMobileDevice variable not defined');
+    }
+    
+    if (typeof springyILS === 'undefined') {
+        throw new Error('springyILS object not found');
+    }
+    
+    // Test mobile-specific functions exist
+    if (typeof springyILS.scrapeMobileCallNumbers !== 'function') {
+        throw new Error('Mobile scraping function scrapeMobileCallNumbers not found');
+    }
+    
+    console.log(`   ✓ Mobile detection: ${isMobileDevice}`);
+    console.log('   ✓ Mobile scraping function exists');
+});
+
+// Test 12: Duplicate Prevention System
+testRunner.test('Duplicate Prevention System', () => {
+    if (typeof springyILS === 'undefined') {
+        throw new Error('springyILS object not found');
+    }
+    
+    const requiredMethods = [
+        'createItemKey',
+        'isGloballyProcessed',
+        'markAsProcessed',
+        'isDuplicateItem'
+    ];
+    
+    requiredMethods.forEach(method => {
+        if (typeof springyILS[method] !== 'function') {
+            throw new Error(`Duplicate prevention method missing: ${method}`);
+        }
+    });
+    
+    // Test the duplicate prevention logic
+    const testCall = 'TEST123';
+    const testLocation = 'Test Library';
+    const testCollection = 'Test Collection';
+    
+    // Should not be processed initially
+    if (springyILS.isGloballyProcessed(testCall, testLocation, testCollection)) {
+        throw new Error('Item should not be processed initially');
+    }
+    
+    // Mark as processed
+    springyILS.markAsProcessed(testCall, testLocation, testCollection);
+    
+    // Should now be processed
+    if (!springyILS.isGloballyProcessed(testCall, testLocation, testCollection)) {
+        throw new Error('Item should be marked as processed');
+    }
+    
+    console.log('   ✓ Duplicate prevention system working correctly');
+});
+
+// Test 13: Mobile Collection Extraction
+testRunner.test('Mobile Collection Extraction', () => {
+    // Test if collection elements exist document-wide (mobile fix)
+    const docCollectionElements = document.querySelectorAll('.detailItemsTable_SD_HZN_COLLECTION');
+    
+    console.log(`   Document-wide collection elements: ${docCollectionElements.length}`);
+    
+    if (docCollectionElements.length > 0) {
+        let realCollectionFound = false;
+        
+        docCollectionElements.forEach((el, index) => {
+            const text = el.textContent.trim();
+            console.log(`   Collection element ${index}: "${text}"`);
+            
+            // Check if it's not just a label
+            if (text && text.toLowerCase() !== 'collection' && text.length > 3) {
+                realCollectionFound = true;
+                
+                // Test collection text extraction
+                if (typeof springyMap !== 'undefined' && springyMap.extractCollectionText) {
+                    const extracted = springyMap.extractCollectionText(el);
+                    console.log(`   Extracted collection: "${extracted}"`);
+                    
+                    if (springyMap.isValidCollection && !springyMap.isValidCollection(extracted)) {
+                        console.log(`   ⚠️ Warning: Extracted collection "${extracted}" is not valid`);
+                    }
+                }
+            }
+        });
+        
+        if (!realCollectionFound) {
+            console.log('   ⚠️ Warning: Only collection labels found, no actual collection data');
+        } else {
+            console.log('   ✓ Real collection data found');
+        }
+    } else {
+        console.log('   ⚠️ No collection elements found on this page');
+    }
+});
+
+// Test 14: Mobile Call Number Validation
+testRunner.test('Mobile Call Number Validation', () => {
+    const callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER');
+    
+    console.log(`   Found ${callElements.length} call number elements`);
+    
+    if (callElements.length > 0) {
+        let validCallNumbers = 0;
+        let invalidCallNumbers = 0;
+        
+        callElements.forEach((el, index) => {
+            const callText = el.textContent.trim();
+            
+            // Test the mobile call number validation logic
+            const invalidCallTexts = ['Shelf Number', 'Call Number', 'Location', 'Collection'];
+            const isInvalidCall = invalidCallTexts.some(invalid => 
+                callText.toLowerCase().includes(invalid.toLowerCase())
+            );
+            
+            const hasLettersAndNumbers = /[A-Za-z]/.test(callText) && /[0-9]/.test(callText);
+            
+            if (isInvalidCall || callText.length < 3 || !hasLettersAndNumbers) {
+                invalidCallNumbers++;
+                console.log(`   Invalid call ${index}: "${callText}" (label or invalid format)`);
+            } else {
+                validCallNumbers++;
+                console.log(`   Valid call ${index}: "${callText}"`);
+            }
+        });
+        
+        console.log(`   ✓ Valid call numbers: ${validCallNumbers}, Invalid: ${invalidCallNumbers}`);
+        
+        if (validCallNumbers === 0) {
+            throw new Error('No valid call numbers found');
+        }
+    } else {
+        console.log('   ⚠️ No call number elements found');
+    }
+});
+
+// Test 15: Mobile vs Desktop DOM Structure
+testRunner.test('Mobile DOM Structure Analysis', () => {
+    const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    console.log(`   Device type: ${isMobile ? 'MOBILE' : 'DESKTOP'}`);
+    console.log(`   Viewport: ${window.innerWidth}x${window.innerHeight}`);
+    
+    // Test mobile-specific selectors
+    const callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER');
+    const libraryElements = document.querySelectorAll('.detailItemsTable_LIBRARY');
+    const collectionElements = document.querySelectorAll('.detailItemsTable_SD_HZN_COLLECTION');
+    
+    console.log(`   Call elements: ${callElements.length}`);
+    console.log(`   Library elements: ${libraryElements.length}`);
+    console.log(`   Collection elements: ${collectionElements.length}`);
+    
+    // On mobile, test if call and collection elements are in different containers
+    if (isMobile && callElements.length > 0 && collectionElements.length > 0) {
+        const firstCall = callElements[0];
+        const firstCollection = collectionElements[0];
+        
+        // Check if they share the same container
+        const callContainer = firstCall.closest('tr') || firstCall.closest('div');
+        const collectionInSameContainer = callContainer ? 
+            callContainer.contains(firstCollection) : false;
+        
+        console.log(`   Call and collection in same container: ${collectionInSameContainer}`);
+        
+        if (!collectionInSameContainer) {
+            console.log('   ✓ Mobile DOM structure confirmed: Collection elements separate from call elements');
+        }
+    }
+    
+    console.log('   ✓ DOM structure analysis complete');
 });
 
 // Utility Functions for Manual Testing

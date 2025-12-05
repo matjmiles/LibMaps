@@ -5,79 +5,12 @@ console.log("ENTERPRISE INTEGRATION: Initializing Springs Lib Maps...");
 
 // Mobile detection and debugging setup
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-var debugMode = true; // Set to false in production
+var debugMode = false; // Set to false in production
 
-// Enhanced mobile debug overlay function
-function createMobileDebugOverlay() {
-    var debugDiv = document.createElement('div');
-    debugDiv.id = 'libmaps-debug';
-    debugDiv.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        right: 10px;
-        background: rgba(0,0,0,0.95);
-        color: #00ff00;
-        padding: 15px;
-        font-family: monospace;
-        font-size: 13px;
-        z-index: 999999;
-        border: 3px solid #ff0000;
-        max-height: 350px;
-        overflow-y: auto;
-        border-radius: 8px;
-        box-shadow: 0 0 20px rgba(255,0,0,0.5);
-    `;
-    debugDiv.innerHTML = '<strong style="color:#ffff00;">🐛 LIBMAPS MOBILE DEBUG</strong><br>';
-    
-    // Add close button
-    var closeBtn = document.createElement('div');
-    closeBtn.innerHTML = '❌';
-    closeBtn.style.cssText = 'position:absolute;top:5px;right:10px;cursor:pointer;color:#fff;font-size:16px;';
-    closeBtn.onclick = function() { debugDiv.style.display = 'none'; };
-    debugDiv.appendChild(closeBtn);
-    
-    document.body.appendChild(debugDiv);
-    return debugDiv;
-}
-
+// Lightweight debug function for production
 function debugLog(message, data) {
-    if (debugMode) {
-        console.log("LIBMAPS DEBUG: " + message, data || "");
-        
-        // Enhanced mobile debug overlay for better troubleshooting
-        if (isMobileDevice) {
-            setTimeout(function() {
-                try {
-                    var debugDiv = document.getElementById('libmaps-debug');
-                    if (!debugDiv && document.body) {
-                        debugDiv = createMobileDebugOverlay();
-                    }
-                    if (debugDiv) {
-                        var timestamp = new Date().toLocaleTimeString();
-                        var color = message.includes('✓') ? '#00ff00' : 
-                                   message.includes('✗') || message.includes('ERROR') ? '#ff4444' : 
-                                   message.includes('MOBILE') ? '#00ffff' : '#ffffff';
-                        debugDiv.innerHTML += `<div style="color:${color};margin:2px 0;">${timestamp}: ${message}</div>`;
-                        
-                        // Show data if provided
-                        if (data && typeof data === 'object') {
-                            debugDiv.innerHTML += `<div style="color:#888888;margin-left:20px;font-size:11px;">${JSON.stringify(data)}</div>`;
-                        }
-                        
-                        // Auto-scroll to bottom
-                        debugDiv.scrollTop = debugDiv.scrollHeight;
-                    }
-                } catch (e) {
-                    console.error('Mobile debug overlay error:', e);
-                }
-            }, 50);
-        }
-    }
+    // Debug logging disabled in production
 }
-
-debugLog("Mobile device detected: " + isMobileDevice);
-debugLog("User agent: " + navigator.userAgent);
 
 var springyILS = {
     // DUPLICATE PREVENTION: Track processed items to prevent duplicate buttons
