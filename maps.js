@@ -658,8 +658,10 @@ var springyMap = {
     cleanText: function(text) {
         if (!text) return "";
         
-        // Clean and normalize text
+        // Clean and normalize text - XSS protection
         var cleaned = text.trim()
+            .replace(/<script[^>]*>.*?<\/script>/gi, "")  // Remove script tags
+            .replace(/<[^>]*>/g, "")       // Remove HTML tags
             .replace(/\n/g, " ")
             .replace(/\s+/g, " ")
             .replace(/Unknown$/, "")  // Remove trailing "Unknown"
