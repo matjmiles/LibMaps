@@ -397,8 +397,193 @@ var springyILS = {
             }
             
             var collection = 'General Books'; // Default for mobile
+            debugLog("🗂️ MOBILE: Collection element search for call: " + callText);
+            
+            // MOBILE FIX: If no collection element in container, search document-wide
+            if (!collectionElement) {
+                debugLog("🔍 MOBILE: No collection in container, searching document-wide...");
+                
+                // Find all collection elements in document
+                var docCollectionElements = document.querySelectorAll('.detailItemsTable_SD_HZN_COLLECTION');
+                debugLog("📋 MOBILE: Found " + docCollectionElements.length + " collection elements document-wide");
+                
+                // Filter out labels and find actual collection values
+                for (var dce = 0; dce < docCollectionElements.length; dce++) {
+                    var docEl = docCollectionElements[dce];
+                    var docText = docEl.textContent.trim();
+                    
+                    debugLog("   📝 MOBILE: Collection element " + dce + ": '" + docText + "'");
+                    
+                    // Skip labels like "Collection"
+                    if (docText.toLowerCase() === 'collection' || docText.length < 3) {
+                        debugLog("   ⚠️ MOBILE: Skipping collection label: '" + docText + "'");
+                        continue;
+                    }
+                    
+                    // This looks like actual collection data
+                    collectionElement = docEl;
+                    debugLog("   ✅ MOBILE: Using collection element: '" + docText + "'");
+                    break;
+                }
+            }
+            
             if (collectionElement) {
+                debugLog("✅ MOBILE: Collection element found: " + collectionElement.tagName + "." + collectionElement.className);
+                debugLog("📝 MOBILE: Collection element raw text: '" + collectionElement.textContent.trim() + "'");
+                
                 collection = springyMap.extractCollectionText(collectionElement) || collection;
+                debugLog("🔍 MOBILE: Extracted collection result: '" + collection + "'");
+            } else {
+                debugLog("❌ MOBILE: No collection element found, testing alternative selectors...");
+                
+                // Debug: Test alternative selectors for collection
+                var altCollectionSelectors = [
+                    '[class*="COLLECTION"]',
+                    '[class*="collection"]', 
+                    '.collection',
+                    '[id*="collection"]',
+                    '[data-collection]',
+                    'td:contains("Collection")',
+                    '*[title*="collection"]'
+                ];
+                
+                altCollectionSelectors.forEach(function(selector, idx) {
+                    try {
+                        var altElements = container.querySelectorAll(selector);
+                        debugLog("🔍 MOBILE: Alt selector " + (idx + 1) + " '" + selector + "': " + altElements.length + " elements");
+                        if (altElements.length > 0) {
+                            for (var k = 0; k < Math.min(2, altElements.length); k++) {
+                                debugLog("   📝 Element " + k + " text: '" + altElements[k].textContent.trim() + "'");
+                            }
+                        }
+                    } catch (e) {
+                        debugLog("⚠️ MOBILE: Selector '" + selector + "' failed: " + e.message);
+                    }
+                });
+                
+                // BROADER ANALYSIS: Show all elements in and around the container
+                debugLog("🔍 MOBILE: BROADER DOM ANALYSIS for container:");
+                debugLog("📦 MOBILE: Container tag: " + container.tagName + ", class: '" + container.className + "', id: '" + container.id + "'");
+                
+                // Show all child elements
+                var children = container.children;
+                debugLog("👶 MOBILE: Container has " + children.length + " children:");
+                for (var c = 0; c < Math.min(10, children.length); c++) {
+                    var child = children[c];
+                    var childText = child.textContent.trim();
+                    if (childText.length > 0 && childText.length < 200) {
+                        debugLog("   Child " + c + ": " + child.tagName + "." + child.className + " - '" + childText + "'");
+                    }
+                }
+                
+                // Show sibling elements
+                if (container.parentElement) {
+                    var siblings = container.parentElement.children;
+                    debugLog("👫 MOBILE: Container has " + siblings.length + " siblings:");
+                    for (var s = 0; s < Math.min(10, siblings.length); s++) {
+                        var sibling = siblings[s];
+                        var siblingText = sibling.textContent.trim();
+                        if (siblingText.length > 0 && siblingText.length < 200 && sibling !== container) {
+                            debugLog("   Sibling " + s + ": " + sibling.tagName + "." + sibling.className + " - '" + siblingText + "'");
+                        }
+                    }
+                }
+                
+                // Look for any elements containing collection-related text
+                debugLog("🔍 MOBILE: Searching for collection-related text in nearby elements...");
+                var nearbyElements = container.querySelectorAll('*');
+                var collectionKeywords = ['collection', 'general books', 'books', 'dvd', 'cd', 'reference'];
+                var foundCollectionText = [];
+                
+                nearbyElements.forEach(function(el) {
+                    var text = el.textContent.trim().toLowerCase();
+                    if (text.length > 2 && text.length < 100) {
+                        collectionKeywords.forEach(function(keyword) {
+                            if (text.includes(keyword) && !foundCollectionText.includes(text)) {
+                                foundCollectionText.push(text);
+                                debugLog("   🎯 Found collection-related text: '" + el.textContent.trim() + "' in " + el.tagName + "." + el.className);
+                            }
+                        });
+                    }
+                });
+                
+                if (foundCollectionText.length === 0) {
+                    debugLog("   ❌ No collection-related text found in container");
+                }
+                
+                // MOBILE DOM STRUCTURE REPORT - Show HTML structure in debug overlay
+                debugLog("📄 MOBILE: CONTAINER HTML STRUCTURE:");
+                debugLog("Raw HTML: " + container.outerHTML.substring(0, 500) + (container.outerHTML.length > 500 ? "..." : ""));
+                
+                // Look in parent elements for collection info
+                var parent = container.parentElement;
+                if (parent) {
+                    debugLog("📦 MOBILE: PARENT ELEMENT ANALYSIS:");
+                    debugLog("Parent tag: " + parent.tagName + ", class: '" + parent.className + "', id: '" + parent.id + "'");
+                    
+                    // Check parent for collection elements
+                    var parentCollectionEls = parent.querySelectorAll('[class*="COLLECTION"], [class*="collection"], [id*="collection"]');
+                    debugLog("Parent collection elements found: " + parentCollectionEls.length);
+                    
+                    if (parentCollectionEls.length > 0) {
+                        for (var pc = 0; pc < parentCollectionEls.length; pc++) {
+                            var pel = parentCollectionEls[pc];
+                            debugLog("   Parent collection " + pc + ": '" + pel.textContent.trim() + "'");
+                        }
+                    }
+                }
+                
+                // Document-wide collection search with mobile-friendly approach
+                debugLog("🌐 MOBILE: DOCUMENT-WIDE COLLECTION SEARCH:");
+                var docCollectionSelectors = [
+                    '.detailItemsTable_SD_HZN_COLLECTION',
+                    '[class*="COLLECTION"]',
+                    'td[class*="collection"]',
+                    'div[class*="collection"]',
+                    '*[id*="collection"]'
+                ];
+                
+                var foundAnyCollection = false;
+                docCollectionSelectors.forEach(function(sel) {
+                    var docEls = document.querySelectorAll(sel);
+                    if (docEls.length > 0) {
+                        foundAnyCollection = true;
+                        debugLog("   📋 '" + sel + "': " + docEls.length + " elements found");
+                        for (var de = 0; de < Math.min(3, docEls.length); de++) {
+                            debugLog("      Element " + de + ": '" + docEls[de].textContent.trim() + "'");
+                        }
+                    }
+                });
+                
+                if (!foundAnyCollection) {
+                    debugLog("   ❌ NO collection elements found anywhere in document!");
+                    debugLog("   🔍 Searching for ANY text containing collection keywords...");
+                    
+                    var allElements = document.querySelectorAll('*');
+                    var collectionMatches = [];
+                    
+                    for (var ae = 0; ae < allElements.length && collectionMatches.length < 5; ae++) {
+                        var elText = allElements[ae].textContent.trim().toLowerCase();
+                        if (elText.length > 5 && elText.length < 100) {
+                            if (elText.includes('general books') || elText.includes('collection') || 
+                                elText.includes('dvd') || elText.includes('reference') || 
+                                elText.includes('special collections')) {
+                                collectionMatches.push({
+                                    text: allElements[ae].textContent.trim(),
+                                    tag: allElements[ae].tagName,
+                                    className: allElements[ae].className
+                                });
+                            }
+                        }
+                    }
+                    
+                    debugLog("   Found " + collectionMatches.length + " potential collection elements:");
+                    collectionMatches.forEach(function(match, idx) {
+                        debugLog("      " + idx + ": " + match.tag + "." + match.className + " = '" + match.text + "'");
+                    });
+                }
+                
+                debugLog("📋 MOBILE: Using default collection: '" + collection + "'");
             }
             
             var titleText = springyILS.getTitle() ? springyMap.extractText(springyILS.getTitle()) : document.title;
