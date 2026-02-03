@@ -628,8 +628,9 @@ var springyMap = {
             .replace(/<[^>]*>/g, "")       // Remove HTML tags
             .replace(/\n/g, " ")
             .replace(/\s+/g, " ")
-            .replace(/Unknown$/, "")  // Remove trailing "Unknown"
-            .replace(/\s+$/, "");     // Remove trailing whitespace again
+            .replace(/Searching\.\.\./g, "")  // Remove async loading text
+            .replace(/Unknown$/i, "")  // Remove trailing "Unknown" (case-insensitive)
+            .replace(/^\s+|\s+$/g, "");     // Trim whitespace
         
         return cleaned;
     },
@@ -659,13 +660,25 @@ var springyMap = {
         if (!element) return "";
         
         var rawText = "";
-        if (element.textContent) {
+        
+        // For collection cells with async loading, try to find the actual value div
+        // Skip divs that contain "Searching..." as they are loading placeholders
+        var asyncField = element.querySelector('.asyncFieldSD_HZN_COLLECTION:not(.asyncInProgressSD_HZN_COLLECTION)');
+        if (asyncField && !asyncField.classList.contains('hidden')) {
+            rawText = asyncField.textContent;
+        } else if (asyncField) {
+            // If the non-loading div exists but is hidden, use it anyway as it has the default
+            rawText = asyncField.textContent;
+        } else if (element.textContent) {
             rawText = element.textContent;
         } else if (element.innerText) {
             rawText = element.innerText;
         }
         
         if (!rawText) return "";
+        
+        // Remove "Searching..." text that appears during async loading
+        rawText = rawText.replace(/Searching\.\.\./g, '').trim();
         
         console.log(`ENTERPRISE: Raw collection text: '${rawText}'`);
         
