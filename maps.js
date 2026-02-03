@@ -164,6 +164,7 @@ var springyILS = {
             var callElement = row.querySelector(".detailItemsTable_CALLNUMBER");
             var libraryElement = row.querySelector(".detailItemsTable_LIBRARY");
             var collectionElement = row.querySelector(".detailItemsTable_SD_HZN_COLLECTION");
+            var itypeElement = row.querySelector(".detailItemsTable_ITYPE"); // Also check ITYPE column
             
             if (callElement && libraryElement) {
                 row.classList.add("libmaps-proc");
@@ -177,6 +178,19 @@ var springyILS = {
                 var call = springyMap.extractText(callElement);
                 var collection = springyMap.extractCollectionText(collectionElement);
                 var titleText = springyMap.extractText(title);
+                
+                // FALLBACK: If collection is invalid/unknown, try ITYPE column
+                // Some library configurations store the actual collection in ITYPE (Location column)
+                if (!collection || collection === 'Unknown' || collection === '' || !springyMap.isValidCollection(collection)) {
+                    if (itypeElement) {
+                        var itypeText = springyMap.extractText(itypeElement);
+                        console.log(`ENTERPRISE: Collection fallback - checking ITYPE: '${itypeText}'`);
+                        if (itypeText && springyMap.isValidCollection(itypeText)) {
+                            console.log(`ENTERPRISE: Using ITYPE as collection: '${itypeText}'`);
+                            collection = itypeText;
+                        }
+                    }
+                }
                 
                 console.log(`  Row ${i + 1} data:`, {
                     location: location,
@@ -319,6 +333,10 @@ var springyILS = {
             var collectionElement = container.querySelector('.detailItemsTable_SD_HZN_COLLECTION') ||
                                    container.querySelector('[class*="COLLECTION"]') ||
                                    container.querySelector('[class*="collection"]');
+            
+            // Also check ITYPE column as fallback for collection
+            var itypeElement = container.querySelector('.detailItemsTable_ITYPE') ||
+                              container.querySelector('[class*="ITYPE"]');
             
             // Extract data with defaults for mobile
             var location = 'David O. McKay Library'; // Default for mobile
@@ -517,6 +535,19 @@ var springyILS = {
                 }
                 
                 debugLog("📋 MOBILE: Using default collection: '" + collection + "'");
+            }
+            
+            // FALLBACK: If collection is invalid/unknown, try ITYPE column
+            // Some library configurations store the actual collection in ITYPE (Location column)
+            if (!collection || collection === 'Unknown' || collection === '' || !springyMap.isValidCollection(collection)) {
+                if (itypeElement) {
+                    var itypeText = springyMap.extractText(itypeElement);
+                    debugLog("📋 MOBILE: Collection fallback - checking ITYPE: '" + itypeText + "'");
+                    if (itypeText && springyMap.isValidCollection(itypeText)) {
+                        debugLog("✅ MOBILE: Using ITYPE as collection: '" + itypeText + "'");
+                        collection = itypeText;
+                    }
+                }
             }
             
             var titleText = springyILS.getTitle() ? springyMap.extractText(springyILS.getTitle()) : document.title;
