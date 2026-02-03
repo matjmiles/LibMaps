@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-02-03
+
+### 🎯 Major Features
+- **Pull Requests Integration**: New `pullRequestsENT.js` for Pickup/Delivery button functionality
+- **IIFE Isolation**: Both scripts wrapped in IIFEs to prevent global variable collisions
+- **Cross-Script Compatibility**: maps.js and pullRequestsENT.js now work together without interference
+
+### ✨ Added
+- `pullRequestsENT-clean.js` - Clean, production-ready Pickup/Delivery button integration
+- `pullRequestsENT.js` - Debug version with extensive mobile debugging overlay
+- `pullRequestsENT.min.js` - Minified production version (4KB)
+- `maps.min.js` - Pre-built minified version of maps.js
+
+### 🔧 Changed
+- Wrapped pullRequestsENT.js in IIFE to isolate variables (`isMobileDevice`, `debugMode`, `processedItems`, `debugLog`, `domReady`)
+- Each script now maintains its own local scope preventing overwrites
+
+### 🐛 Fixed
+- **Variable Collision Bug**: Fixed issue where pullRequestsENT.js was overwriting maps.js global variables
+- Both MapIt (desktop) and Pickup/Delivery (mobile) buttons now work simultaneously
+- Call number detection improved for mobile views
+
+### 📱 Mobile Improvements
+- Added mobile-specific status element detection
+- Document-wide call number search for mobile DOM structure
+- Support for non-LC call numbers (e.g., Popular Books collection uses author names)
+
+### 📝 Files for Deployment
+- `maps.min.js` - MapIt button functionality
+- `pullRequestsENT.min.js` - Pickup/Delivery button functionality (uses pullRequestsENT-clean.js)
+
+---
+
 ## [2.1.0] - 2024-01-XX
 
 ### 🎯 Major Features
