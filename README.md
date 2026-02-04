@@ -15,9 +15,19 @@ LibMaps seamlessly integrates with SirsiDynix Enterprise catalog systems to prov
 - **🔒 Security Hardened**: XSS protection and input sanitization
 - **📱 Mobile-First Design**: Optimized for mobile devices with responsive DOM handling  
 - **🚫 Duplicate Prevention**: Comprehensive system prevents multiple buttons per item
-- **🎯 Smart Collection Mapping**: Accurate collection extraction with fallback mechanisms
+- **🎯 ITYPE-First Collection Extraction**: Reads Material Type column for accurate shelf mapping
 - **🧪 Extensively Tested**: 15-test suite with 97-100% success rate
 - **⚡ High Performance**: Minimal overhead with efficient DOM processing
+
+## 🗺️ Collection Extraction (v2.3.0)
+
+LibMaps uses an **ITYPE-first** approach for determining item collections:
+
+1. **Primary Source**: `detailItemsTable_ITYPE` (Material Type column) - Most reliable
+2. **Fallback**: `detailItemsTable_SD_HZN_COLLECTION` - Only if ITYPE is invalid
+3. **Mobile Default**: "General Books" if no valid source found
+
+This approach fixes issues where the async SD_HZN_COLLECTION field returns "Unknown" or incorrect data.
 
 ## 🚀 Quick Start
 

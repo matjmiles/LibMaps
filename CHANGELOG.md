@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-02-04
+
+### 🎯 Major Fix
+- **ITYPE-First Collection Extraction**: Fixed wrong map location bug by prioritizing Material Type (ITYPE) column over SD_HZN_COLLECTION field
+
+### 🐛 Fixed
+- **Wrong Map Location Bug**: Books were showing incorrect shelf locations (e.g., "General Books" showing as "Special Collections")
+- Root cause: SD_HZN_COLLECTION async field often returns "Unknown" or incorrect data
+- Solution: Now reads collection from `detailItemsTable_ITYPE` (Material Type) column as primary source
+
+### 🔧 Changed
+- Collection extraction now uses ITYPE column first, falls back to SD_HZN_COLLECTION only if ITYPE is invalid
+- Added async field loading detection - waits for "Searching..." to complete before scraping
+- Improved mobile collection extraction with same ITYPE-first logic
+
+### 🧪 Test Files Added
+- `test-versions/maps-test.js` - Full debug version with ITYPE-first extraction
+- `test-versions/maps.min.test.js` - Minified debug version
+- `test-versions/pullRequestsENT-test.js` - Debug version of Pull Requests
+- `test-versions/BYUI_master_test.js` - Master loader for test scripts
+
+### 📊 Debug Features
+- Green debug overlay (bottom-right) for LibMaps showing extraction details
+- Blue debug overlay (bottom-left) for Pull Requests
+- Detailed logging of ITYPE vs COLLECTION source selection
+- URL parameter logging on button click
+
+---
+
 ## [2.2.0] - 2026-02-03
 
 ### 🎯 Major Features
