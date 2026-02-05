@@ -47,7 +47,32 @@ var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera M
 **Result**: Scripts now have isolated scope, but Map It button still doesn't appear on mobile.
 
 ### 2. Debug Overlay Repositioning
-**Issue**: Debug overlays at bottom of screen were blocking the availability button on mobile  
+**Issue**: Debug overlays at bottom of screen were blocking the availability button on mobile
+
+## BEST PRACTICES FOR AI ENGINES
+
+### 1. Production vs. Test Parity
+**Critical Rule**: When moving from a working "Test" version to "Production", do NOT rewrite logic.
+- **The Issue**: Previous attempts to "clean up" `maps-test.js` for production inadvertently removed critical fallback logic for mobile devices.
+- **The Solution**: 
+    1.  Take the *exact* working test file (`maps-test.js`).
+    2.  Set `debugMode = false`.
+    3.  Remove `console.log` or `debugLog` calls if strict minification is required, but **keep all control flow structures identical**.
+    4.  Specifically, ensure `scrapeMobileCallNumbers` retains its complex fallback loop (checking `.detailItemsListItem` AND `.detailItemsTable_CALLNUMBER` separately).
+
+### 2. Mobile Scraping Logic
+Mobile Enterprise views often differ from Desktop.
+- **Desktop**: Reliable table structure (`tr` > `td`).
+- **Mobile**: varied structure. Sometimes `div` based lists, sometimes tables.
+- **The Fix**: The script must include a "Fallback Scraping" strategy. If the primary structure (List Items) is not found, it must check for raw Call Number elements and infer the "Item" container from there.
+
+### 3. Collection Matching
+Be aware that "Collection" names in the DOM can be messy (`General Books\n`, `DVD  `, etc.).
+- Use the robust `extractCollectionText` function which attempts:
+    1. Exact Match
+    2. Partial Match (Start of string)
+    3. Case-Insensitive Match
+- Do NOT rely on a simple `===` comparison against a hardcoded list without cleaning the text first.  
 **Change**: Moved overlays to top of screen with smaller height
 
 ```javascript
