@@ -1,16 +1,8 @@
 // sirsiDynix Enterprise - Springs Lib Maps Integration
-// Fixed version addressing common integration issues
+// Production Version with ITYPE-first Collection Extraction
+// Date: 2026-02-05
 
-console.log("ENTERPRISE INTEGRATION: Initializing Springs Lib Maps...");
-
-// Mobile detection and debugging setup
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-var debugMode = false; // Set to false in production
-
-// Lightweight debug function for production
-function debugLog(message, data) {
-    // Debug logging disabled in production
-}
 
 var springyILS = {
     // DUPLICATE PREVENTION: Track processed items to prevent duplicate buttons
@@ -28,7 +20,6 @@ var springyILS = {
     markAsProcessed: function(call, location, collection) {
         var key = this.createItemKey(call, location, collection);
         this.processedItems.add(key);
-        debugLog("Marked as processed: " + key);
     },
     
     isDuplicateItem: function(potentialItem, existingItems) {
@@ -44,9 +35,7 @@ var springyILS = {
     },
 
     getTitle: function(element) {
-        // Try multiple selector strategies for better compatibility
         var titleSelectors = [
-            // Most specific first - actual title content
             ".displayElementText.text-p.INITIAL_TITLE_SRCH",
             ".displayElementText.INITIAL_TITLE_SRCH", 
             ".detail_biblio_title",
@@ -54,20 +43,15 @@ var springyILS = {
             ".INITIAL_TITLE_SRCH:not(.INITIAL_TITLE_SRCH_label)"
         ];
         
-        // Always search from document level first
         for (var i = 0; i < titleSelectors.length; i++) {
             var title = document.querySelector(titleSelectors[i]);
             if (title && title.textContent && title.textContent.trim()) {
                 var titleText = title.textContent.trim();
-                console.log("ENTERPRISE: Found title using selector:", titleSelectors[i]);
-                console.log("ENTERPRISE: Title text:", titleText);
                 return title;
             }
         }
         
-        // Try alternative selectors for different page layouts
         var alternativeSelectors = [
-            // Look for any element with title-related content
             "[class*='TITLE']:not([class*='label']):not([class*='_label'])",
             ".detail_biblio .INITIAL_TITLE_SRCH",
             "#detail_biblio0 .INITIAL_TITLE_SRCH"
@@ -80,140 +64,88 @@ var springyILS = {
                 if (elem && elem.textContent && elem.textContent.trim() && 
                     !elem.classList.contains('label') && 
                     !elem.textContent.trim().endsWith(':')) {
-                    console.log("ENTERPRISE: Found title using alternative selector:", alternativeSelectors[k]);
-                    console.log("ENTERPRISE: Title text:", elem.textContent.trim());
                     return elem;
                 }
             }
         }
         
-        // Final fallback: use document title (remove " - Library Name" suffix if present)
         var docTitle = document.title;
         if (docTitle) {
-            // Clean up common title suffixes
             docTitle = docTitle.replace(/ - .*$/, '').trim();
-            console.log("ENTERPRISE: Using document title as fallback:", docTitle);
-            // Create a virtual element to return consistent interface
-            var virtualTitle = {
-                textContent: docTitle,
-                innerText: docTitle
-            };
-            return virtualTitle;
+            return { textContent: docTitle, innerText: docTitle };
         }
-        
-        console.warn("ENTERPRISE: No title found at all");
         return null;
     },
     
     scrapeDetailRows: function(items) {
-        debugLog("📋 STARTING: Detail row scraping");
-        debugLog("📱 MOBILE CHECK: isMobileDevice = " + isMobileDevice);
-        debugLog("🌐 USER AGENT: " + navigator.userAgent);
-        debugLog("📏 VIEWPORT: " + window.innerWidth + "x" + window.innerHeight);
-        
-        // MOBILE-FIRST APPROACH: If on mobile, try direct call number detection first
         if (isMobileDevice) {
-            debugLog("📱 MOBILE: Device detected - trying mobile-specific scraping first");
-            debugLog("📱 MOBILE: Current items array length before mobile scraping: " + items.length);
-            
             items = this.scrapeMobileCallNumbers(items);
             
-            debugLog("📱 MOBILE: Items array length after mobile scraping: " + items.length);
-            
-            // If mobile scraping found items, use those and skip row-based scraping to prevent duplicates
             if (items.length > 0) {
-                debugLog("✅ MOBILE: Mobile scraping found " + items.length + " items - skipping row-based scraping to prevent duplicates");
                 return items;
-            } else {
-                debugLog("⚠️ MOBILE: No items found via mobile scraping, falling back to desktop method");
             }
-        } else {
-            debugLog("💻 DESKTOP: Not a mobile device, using desktop scraping only");
         }
         
-        // DESKTOP/FALLBACK: Traditional row-based scraping
         var selectors = [
             ".detailItemsTableRow:not(.libmaps-proc)",
             "tbody .detailItemsTableRow:not(.libmaps-proc)",
-            ".detailItemsTable tr:not(.libmaps-proc)", // Additional mobile selector
-            "[class*='detailItems'] tr:not(.libmaps-proc)" // Wildcard selector
+            ".detailItemsTable tr:not(.libmaps-proc)",
+            "[class*='detailItems'] tr:not(.libmaps-proc)"
         ];
-        
-        debugLog("Trying " + selectors.length + " row selectors");
         
         var rows = null;
         for (var i = 0; i < selectors.length && !rows; i++) {
-            debugLog("Testing selector: " + selectors[i]);
             rows = document.querySelectorAll(selectors[i]);
             if (rows.length > 0) {
-                debugLog("Found " + rows.length + " rows using selector: " + selectors[i]);
                 break;
             }
         }
         
         if (!rows || rows.length === 0) {
-            console.warn("ENTERPRISE: No detail rows found");
             return items;
         }
         
-        for (let i = 0; i < rows.length; i++) {
-            console.log(`ENTERPRISE: Processing row ${i + 1} of ${rows.length}`);
-            
+        for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             var title = springyILS.getTitle(row);
             var callElement = row.querySelector(".detailItemsTable_CALLNUMBER");
             var libraryElement = row.querySelector(".detailItemsTable_LIBRARY");
             var collectionElement = row.querySelector(".detailItemsTable_SD_HZN_COLLECTION");
-            var itypeElement = row.querySelector(".detailItemsTable_ITYPE"); // Also check ITYPE column
+            var itypeElement = row.querySelector(".detailItemsTable_ITYPE");
             
             if (callElement && libraryElement) {
                 row.classList.add("libmaps-proc");
                 
-                // Extract location - try multiple approaches
                 var locationElement = libraryElement.querySelector(".asyncFieldLIBRARY:last-of-type") ||
                                      libraryElement.querySelector(".asyncFieldLIBRARY") ||
                                      libraryElement;
                 
                 var location = springyMap.extractText(locationElement);
                 var call = springyMap.extractText(callElement);
-                var collection = springyMap.extractCollectionText(collectionElement);
                 var titleText = springyMap.extractText(title);
                 
-                // FALLBACK: If collection is invalid/unknown, try ITYPE column
-                // Some library configurations store the actual collection in ITYPE (Location column)
-                if (!collection || collection === 'Unknown' || collection === '' || !springyMap.isValidCollection(collection)) {
-                    if (itypeElement) {
-                        var itypeText = springyMap.extractText(itypeElement);
-                        console.log(`ENTERPRISE: Collection fallback - checking ITYPE: '${itypeText}'`);
-                        if (itypeText && springyMap.isValidCollection(itypeText)) {
-                            console.log(`ENTERPRISE: Using ITYPE as collection: '${itypeText}'`);
-                            collection = itypeText;
-                        }
+                // PRIMARY SOURCE: Use ITYPE (Material Type) column for collection
+                var collection = '';
+                
+                if (itypeElement) {
+                    var itypeText = springyMap.extractText(itypeElement);
+                    if (itypeText && springyMap.isValidCollection(itypeText)) {
+                        collection = itypeText;
                     }
                 }
                 
-                console.log(`  Row ${i + 1} data:`, {
-                    location: location,
-                    call: call,
-                    collection: collection,
-                    title: titleText
-                });
-                
-                // Validate before adding
+                // FALLBACK: Only check SD_HZN_COLLECTION if ITYPE didn't work
+                if (!collection || collection === '') {
+                    collection = springyMap.extractCollectionText(collectionElement);
+                }
                 var locationValid = springyMap.isValidLocation(location);
                 var collectionValid = springyMap.isValidCollection(collection);
                 var callValid = call && call.length > 0;
-                
-                console.log(`  Validation - Location: ${locationValid}, Collection: ${collectionValid}, Call: ${callValid}`);
-                
-                // Check if this item is already processed globally to prevent duplicates
                 if (springyILS.isGloballyProcessed(call, location, collection)) {
-                    console.log(`  ✗ Row ${i + 1} already processed globally, skipping`);
                     continue;
                 }
                 
                 if (callValid && locationValid && collectionValid) {
-                    // Create potential item
                     var potentialItem = {
                         element: row,
                         buttonElement: callElement,
@@ -223,57 +155,31 @@ var springyILS = {
                         collection: collection
                     };
                     
-                    // Check for duplicates within current batch
                     if (springyILS.isDuplicateItem(potentialItem, items)) {
-                        console.log(`  ✗ Row ${i + 1} is duplicate within current batch, skipping`);
                         continue;
                     }
                     
                     items.push(potentialItem);
                     springyILS.markAsProcessed(call, location, collection);
-                    console.log(`  ✓ Row ${i + 1} added to items`);
                 } else {
-                    console.log(`  ✗ Row ${i + 1} failed validation`);
                 }
             } else {
-                console.log(`  ✗ Row ${i + 1} missing required elements (call: ${!!callElement}, library: ${!!libraryElement})`);
             }
         }
-        
-        console.log(`ENTERPRISE: Scraped ${items.length} valid items`);
         return items;
     },
 
-    // MOBILE-SPECIFIC: Direct call number detection for mobile devices
     scrapeMobileCallNumbers: function(items) {
-        debugLog("🔍 MOBILE: Starting mobile-specific call number detection");
-        
-        // Find call number elements directly (mobile DOM structure is different)
         var callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER:not(.libmaps-processed)');
-        debugLog("🔍 MOBILE: Found " + callElements.length + " unprocessed call elements for mobile");
-        
-        // Debug: Show all call elements found
         if (callElements.length === 0) {
-            debugLog("❌ MOBILE: No call elements found! Testing alternative selectors...");
-            
-            // Test alternative selectors
             var altSelectors = [
                 '.detailItemsTable_CALLNUMBER',
                 '.CALLNUMBER',
-                '[class*="CALLNUMBER"]',
-                '[class*="callnumber"]',
-                '.call-number',
-                '.callNumber'
+                '[class*="CALLNUMBER"]'
             ];
             
             altSelectors.forEach(function(selector) {
                 var altElements = document.querySelectorAll(selector);
-                debugLog("🔍 MOBILE: Selector '" + selector + "' found " + altElements.length + " elements");
-                if (altElements.length > 0) {
-                    for (var k = 0; k < Math.min(3, altElements.length); k++) {
-                        debugLog("📋 MOBILE: Element " + k + " text: '" + altElements[k].textContent.trim() + "'");
-                    }
-                }
             });
         }
         
@@ -281,65 +187,32 @@ var springyILS = {
             var callElement = callElements[i];
             var callText = springyMap.extractText(callElement);
             
-            if (!callText || callText.length === 0) {
-                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - no call text");
-                continue;
-            }
+            if (!callText || callText.length === 0) continue;
             
-            // Filter out labels and non-call-number text
-            var invalidCallTexts = [
-                'Shelf Number',
-                'Call Number', 
-                'Location',
-                'Collection',
-                'Library',
-                'Status',
-                'Due Date'
-            ];
+            var invalidCallTexts = ['Shelf Number', 'Call Number', 'Location', 'Collection', 'Library', 'Status', 'Due Date'];
             
             var isInvalidCall = invalidCallTexts.some(function(invalid) {
                 return callText.toLowerCase().includes(invalid.toLowerCase());
             });
             
-            if (isInvalidCall) {
-                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - detected as label: '" + callText + "'");
-                continue;
-            }
+            if (isInvalidCall) continue;
             
-            // Additional validation: Real call numbers usually contain letters and numbers
-            if (callText.length < 3 || !/[A-Za-z]/.test(callText) || !/[0-9]/.test(callText)) {
-                debugLog("❌ MOBILE: Skipping call element " + (i + 1) + " - doesn't look like call number: '" + callText + "'");
-                continue;
-            }
-            
-            debugLog("✅ MOBILE: Processing valid call element " + (i + 1) + ": " + callText);
-            
-            // Mark DOM element as processed immediately to prevent duplicates
+            if (callText.length < 3 || !/[A-Za-z]/.test(callText) || !/[0-9]/.test(callText)) continue;
             callElement.classList.add('libmaps-processed');
             
-            // Find container for this call element
             var container = callElement.closest('tr') || callElement.closest('div') || callElement.parentElement;
             
-            if (!container) {
-                debugLog("No container found for call element " + (i + 1));
-                continue;
-            }
+            if (!container) continue;
             
-            // Look for library and collection elements in the same container
             var libraryElement = container.querySelector('.detailItemsTable_LIBRARY') || 
-                                container.querySelector('[class*="LIBRARY"]') ||
-                                container.querySelector('[class*="library"]');
+                                container.querySelector('[class*="LIBRARY"]');
                                 
             var collectionElement = container.querySelector('.detailItemsTable_SD_HZN_COLLECTION') ||
-                                   container.querySelector('[class*="COLLECTION"]') ||
-                                   container.querySelector('[class*="collection"]');
+                                   container.querySelector('[class*="COLLECTION"]');
             
-            // Also check ITYPE column as fallback for collection
-            var itypeElement = container.querySelector('.detailItemsTable_ITYPE') ||
-                              container.querySelector('[class*="ITYPE"]');
+            var itypeElement = container.querySelector('.detailItemsTable_ITYPE');
             
-            // Extract data with defaults for mobile
-            var location = 'David O. McKay Library'; // Default for mobile
+            var location = 'David O. McKay Library';
             if (libraryElement) {
                 var locationElement = libraryElement.querySelector(".asyncFieldLIBRARY:last-of-type") ||
                                      libraryElement.querySelector(".asyncFieldLIBRARY") ||
@@ -347,233 +220,36 @@ var springyILS = {
                 location = springyMap.extractText(locationElement) || location;
             }
             
-            var collection = 'General Books'; // Default for mobile
-            debugLog("🗂️ MOBILE: Collection element search for call: " + callText);
+            // PRIMARY SOURCE: Use ITYPE (Material Type) for collection
+            var collection = '';
             
-            // MOBILE FIX: If no collection element in container, search document-wide
-            if (!collectionElement) {
-                debugLog("🔍 MOBILE: No collection in container, searching document-wide...");
-                
-                // Find all collection elements in document
-                var docCollectionElements = document.querySelectorAll('.detailItemsTable_SD_HZN_COLLECTION');
-                debugLog("📋 MOBILE: Found " + docCollectionElements.length + " collection elements document-wide");
-                
-                // Filter out labels and find actual collection values
-                for (var dce = 0; dce < docCollectionElements.length; dce++) {
-                    var docEl = docCollectionElements[dce];
-                    var docText = docEl.textContent.trim();
-                    
-                    debugLog("   📝 MOBILE: Collection element " + dce + ": '" + docText + "'");
-                    
-                    // Skip labels like "Collection"
-                    if (docText.toLowerCase() === 'collection' || docText.length < 3) {
-                        debugLog("   ⚠️ MOBILE: Skipping collection label: '" + docText + "'");
-                        continue;
-                    }
-                    
-                    // This looks like actual collection data
-                    collectionElement = docEl;
-                    debugLog("   ✅ MOBILE: Using collection element: '" + docText + "'");
-                    break;
+            if (itypeElement) {
+                var itypeText = springyMap.extractText(itypeElement);
+                if (itypeText && springyMap.isValidCollection(itypeText)) {
+                    collection = itypeText;
                 }
             }
             
-            if (collectionElement) {
-                debugLog("✅ MOBILE: Collection element found: " + collectionElement.tagName + "." + collectionElement.className);
-                debugLog("📝 MOBILE: Collection element raw text: '" + collectionElement.textContent.trim() + "'");
-                
-                collection = springyMap.extractCollectionText(collectionElement) || collection;
-                debugLog("🔍 MOBILE: Extracted collection result: '" + collection + "'");
-            } else {
-                debugLog("❌ MOBILE: No collection element found, testing alternative selectors...");
-                
-                // Debug: Test alternative selectors for collection
-                var altCollectionSelectors = [
-                    '[class*="COLLECTION"]',
-                    '[class*="collection"]', 
-                    '.collection',
-                    '[id*="collection"]',
-                    '[data-collection]',
-                    'td:contains("Collection")',
-                    '*[title*="collection"]'
-                ];
-                
-                altCollectionSelectors.forEach(function(selector, idx) {
-                    try {
-                        var altElements = container.querySelectorAll(selector);
-                        debugLog("🔍 MOBILE: Alt selector " + (idx + 1) + " '" + selector + "': " + altElements.length + " elements");
-                        if (altElements.length > 0) {
-                            for (var k = 0; k < Math.min(2, altElements.length); k++) {
-                                debugLog("   📝 Element " + k + " text: '" + altElements[k].textContent.trim() + "'");
-                            }
-                        }
-                    } catch (e) {
-                        debugLog("⚠️ MOBILE: Selector '" + selector + "' failed: " + e.message);
-                    }
-                });
-                
-                // BROADER ANALYSIS: Show all elements in and around the container
-                debugLog("🔍 MOBILE: BROADER DOM ANALYSIS for container:");
-                debugLog("📦 MOBILE: Container tag: " + container.tagName + ", class: '" + container.className + "', id: '" + container.id + "'");
-                
-                // Show all child elements
-                var children = container.children;
-                debugLog("👶 MOBILE: Container has " + children.length + " children:");
-                for (var c = 0; c < Math.min(10, children.length); c++) {
-                    var child = children[c];
-                    var childText = child.textContent.trim();
-                    if (childText.length > 0 && childText.length < 200) {
-                        debugLog("   Child " + c + ": " + child.tagName + "." + child.className + " - '" + childText + "'");
-                    }
+            // FALLBACK: Only check SD_HZN_COLLECTION if ITYPE didn't work
+            if (!collection || collection === '') {
+                if (collectionElement) {
+                    collection = springyMap.extractCollectionText(collectionElement);
                 }
                 
-                // Show sibling elements
-                if (container.parentElement) {
-                    var siblings = container.parentElement.children;
-                    debugLog("👫 MOBILE: Container has " + siblings.length + " siblings:");
-                    for (var s = 0; s < Math.min(10, siblings.length); s++) {
-                        var sibling = siblings[s];
-                        var siblingText = sibling.textContent.trim();
-                        if (siblingText.length > 0 && siblingText.length < 200 && sibling !== container) {
-                            debugLog("   Sibling " + s + ": " + sibling.tagName + "." + sibling.className + " - '" + siblingText + "'");
-                        }
-                    }
-                }
-                
-                // Look for any elements containing collection-related text
-                debugLog("🔍 MOBILE: Searching for collection-related text in nearby elements...");
-                var nearbyElements = container.querySelectorAll('*');
-                var collectionKeywords = ['collection', 'general books', 'books', 'dvd', 'cd', 'reference'];
-                var foundCollectionText = [];
-                
-                nearbyElements.forEach(function(el) {
-                    var text = el.textContent.trim().toLowerCase();
-                    if (text.length > 2 && text.length < 100) {
-                        collectionKeywords.forEach(function(keyword) {
-                            if (text.includes(keyword) && !foundCollectionText.includes(text)) {
-                                foundCollectionText.push(text);
-                                debugLog("   🎯 Found collection-related text: '" + el.textContent.trim() + "' in " + el.tagName + "." + el.className);
-                            }
-                        });
-                    }
-                });
-                
-                if (foundCollectionText.length === 0) {
-                    debugLog("   ❌ No collection-related text found in container");
-                }
-                
-                // MOBILE DOM STRUCTURE REPORT - Show HTML structure in debug overlay
-                debugLog("📄 MOBILE: CONTAINER HTML STRUCTURE:");
-                debugLog("Raw HTML: " + container.outerHTML.substring(0, 500) + (container.outerHTML.length > 500 ? "..." : ""));
-                
-                // Look in parent elements for collection info
-                var parent = container.parentElement;
-                if (parent) {
-                    debugLog("📦 MOBILE: PARENT ELEMENT ANALYSIS:");
-                    debugLog("Parent tag: " + parent.tagName + ", class: '" + parent.className + "', id: '" + parent.id + "'");
-                    
-                    // Check parent for collection elements
-                    var parentCollectionEls = parent.querySelectorAll('[class*="COLLECTION"], [class*="collection"], [id*="collection"]');
-                    debugLog("Parent collection elements found: " + parentCollectionEls.length);
-                    
-                    if (parentCollectionEls.length > 0) {
-                        for (var pc = 0; pc < parentCollectionEls.length; pc++) {
-                            var pel = parentCollectionEls[pc];
-                            debugLog("   Parent collection " + pc + ": '" + pel.textContent.trim() + "'");
-                        }
-                    }
-                }
-                
-                // Document-wide collection search with mobile-friendly approach
-                debugLog("🌐 MOBILE: DOCUMENT-WIDE COLLECTION SEARCH:");
-                var docCollectionSelectors = [
-                    '.detailItemsTable_SD_HZN_COLLECTION',
-                    '[class*="COLLECTION"]',
-                    'td[class*="collection"]',
-                    'div[class*="collection"]',
-                    '*[id*="collection"]'
-                ];
-                
-                var foundAnyCollection = false;
-                docCollectionSelectors.forEach(function(sel) {
-                    var docEls = document.querySelectorAll(sel);
-                    if (docEls.length > 0) {
-                        foundAnyCollection = true;
-                        debugLog("   📋 '" + sel + "': " + docEls.length + " elements found");
-                        for (var de = 0; de < Math.min(3, docEls.length); de++) {
-                            debugLog("      Element " + de + ": '" + docEls[de].textContent.trim() + "'");
-                        }
-                    }
-                });
-                
-                if (!foundAnyCollection) {
-                    debugLog("   ❌ NO collection elements found anywhere in document!");
-                    debugLog("   🔍 Searching for ANY text containing collection keywords...");
-                    
-                    var allElements = document.querySelectorAll('*');
-                    var collectionMatches = [];
-                    
-                    for (var ae = 0; ae < allElements.length && collectionMatches.length < 5; ae++) {
-                        var elText = allElements[ae].textContent.trim().toLowerCase();
-                        if (elText.length > 5 && elText.length < 100) {
-                            if (elText.includes('general books') || elText.includes('collection') || 
-                                elText.includes('dvd') || elText.includes('reference') || 
-                                elText.includes('special collections')) {
-                                collectionMatches.push({
-                                    text: allElements[ae].textContent.trim(),
-                                    tag: allElements[ae].tagName,
-                                    className: allElements[ae].className
-                                });
-                            }
-                        }
-                    }
-                    
-                    debugLog("   Found " + collectionMatches.length + " potential collection elements:");
-                    collectionMatches.forEach(function(match, idx) {
-                        debugLog("      " + idx + ": " + match.tag + "." + match.className + " = '" + match.text + "'");
-                    });
-                }
-                
-                debugLog("📋 MOBILE: Using default collection: '" + collection + "'");
-            }
-            
-            // FALLBACK: If collection is invalid/unknown, try ITYPE column
-            // Some library configurations store the actual collection in ITYPE (Location column)
-            if (!collection || collection === 'Unknown' || collection === '' || !springyMap.isValidCollection(collection)) {
-                if (itypeElement) {
-                    var itypeText = springyMap.extractText(itypeElement);
-                    debugLog("📋 MOBILE: Collection fallback - checking ITYPE: '" + itypeText + "'");
-                    if (itypeText && springyMap.isValidCollection(itypeText)) {
-                        debugLog("✅ MOBILE: Using ITYPE as collection: '" + itypeText + "'");
-                        collection = itypeText;
-                    }
+                // Last resort default
+                if (!collection || !springyMap.isValidCollection(collection)) {
+                    collection = 'General Books';
                 }
             }
             
             var titleText = springyILS.getTitle() ? springyMap.extractText(springyILS.getTitle()) : document.title;
-            
-            debugLog("Mobile item " + (i + 1) + " extracted data:", {
-                call: callText,
-                location: location,
-                collection: collection,
-                title: titleText
-            });
-            
-            // Validate
             var locationValid = springyMap.isValidLocation(location);
             var collectionValid = springyMap.isValidCollection(collection);
             var callValid = callText && callText.length > 0;
             
-            debugLog("Mobile validation - Location: " + locationValid + ", Collection: " + collectionValid + ", Call: " + callValid);
-            
-            // Check if this item is already processed globally to prevent duplicates
-            if (springyILS.isGloballyProcessed(callText, location, collection)) {
-                debugLog("✗ Mobile item " + (i + 1) + " already processed globally, skipping");
-                continue;
-            }
+            if (springyILS.isGloballyProcessed(callText, location, collection)) continue;
             
             if (callValid && locationValid && collectionValid) {
-                // Create potential item
                 var potentialItem = {
                     element: container || callElement,
                     buttonElement: callElement,
@@ -583,21 +259,12 @@ var springyILS = {
                     collection: collection
                 };
                 
-                // Check for duplicates within current batch
-                if (springyILS.isDuplicateItem(potentialItem, items)) {
-                    debugLog("✗ Mobile item " + (i + 1) + " is duplicate within current batch, skipping");
-                    continue;
-                }
+                if (springyILS.isDuplicateItem(potentialItem, items)) continue;
                 
                 items.push(potentialItem);
                 springyILS.markAsProcessed(callText, location, collection);
-                debugLog("✓ Mobile item " + (i + 1) + " added to items");
-            } else {
-                debugLog("✗ Mobile item " + (i + 1) + " failed validation");
             }
         }
-        
-        debugLog("Mobile scraping complete - found " + items.length + " valid mobile items");
         return items;
     },
     
@@ -606,13 +273,10 @@ var springyILS = {
     },
     
     attachButton: function(item, buttonDiv) {
-        console.log("ENTERPRISE: Attaching button to:", item.call);
         (item.buttonElement || item.element).appendChild(buttonDiv);
     },
     
-    setupListeners: function() {
-        // Reserved for future use
-    }
+    setupListeners: function() {}
 };
 
 var springyMap = {
@@ -622,15 +286,14 @@ var springyMap = {
     cleanText: function(text) {
         if (!text) return "";
         
-        // Clean and normalize text - XSS protection
         var cleaned = text.trim()
-            .replace(/<script[^>]*>.*?<\/script>/gi, "")  // Remove script tags
-            .replace(/<[^>]*>/g, "")       // Remove HTML tags
+            .replace(/<script[^>]*>.*?<\/script>/gi, "")
+            .replace(/<[^>]*>/g, "")
             .replace(/\n/g, " ")
             .replace(/\s+/g, " ")
-            .replace(/Searching\.\.\./g, "")  // Remove async loading text
-            .replace(/Unknown$/i, "")  // Remove trailing "Unknown" (case-insensitive)
-            .replace(/^\s+|\s+$/g, "");     // Trim whitespace
+            .replace(/Searching\.\.\./g, "")
+            .replace(/Unknown$/i, "")
+            .replace(/^\s+|\s+$/g, "");
         
         return cleaned;
     },
@@ -645,81 +308,80 @@ var springyMap = {
             text = element.innerText;
         }
         
-        // Additional cleanup for collection fields that might have concatenated values
-        var cleaned = springyMap.cleanText(text);
-        
-        // Log the before/after for debugging
-        if (text !== cleaned) {
-            console.log(`ENTERPRISE: Text cleaned - Before: '${text}', After: '${cleaned}'`);
-        }
-        
-        return cleaned;
+        return springyMap.cleanText(text);
     },
     
     extractCollectionText: function(element) {
-        if (!element) return "";
-        
-        var rawText = "";
-        
-        // For collection cells with async loading, try to find the actual value div
-        // Skip divs that contain "Searching..." as they are loading placeholders
-        var asyncField = element.querySelector('.asyncFieldSD_HZN_COLLECTION:not(.asyncInProgressSD_HZN_COLLECTION)');
-        if (asyncField && !asyncField.classList.contains('hidden')) {
-            rawText = asyncField.textContent;
-        } else if (asyncField) {
-            // If the non-loading div exists but is hidden, use it anyway as it has the default
-            rawText = asyncField.textContent;
-        } else if (element.textContent) {
-            rawText = element.textContent;
-        } else if (element.innerText) {
-            rawText = element.innerText;
+        if (!element) {
+            return "";
         }
         
-        if (!rawText) return "";
+        var rawText = "";
+        // Look for ALL async fields and find the one with actual content
+        var allAsyncFields = element.querySelectorAll('.asyncFieldSD_HZN_COLLECTION');
+        for (var af = 0; af < allAsyncFields.length; af++) {
+            var field = allAsyncFields[af];
+            var fieldText = field.textContent.trim();
+            var isHidden = field.classList.contains('hidden');
+            var isInProgress = field.classList.contains('asyncInProgressSD_HZN_COLLECTION');
+            // Skip "Searching..." and "Unknown" values
+            if (fieldText === 'Searching...' || fieldText === 'Unknown' || fieldText === '') {
+                continue;
+            }
+            
+            // Skip hidden fields unless they have good data
+            if (isHidden && (fieldText === 'Unknown' || fieldText === '')) {
+                continue;
+            }
+            
+            // Found a field with actual collection data
+            if (fieldText && fieldText.length > 0) {
+                rawText = fieldText;
+                break;
+            }
+        }
         
-        // Remove "Searching..." text that appears during async loading
-        rawText = rawText.replace(/Searching\.\.\./g, '').trim();
+        // If no valid async field found, check element's direct text
+        if (!rawText) {
+            var directText = element.textContent || element.innerText || "";
+            directText = directText.replace(/Searching\.\.\./g, '').replace(/Unknown/g, '').trim();
+            
+            if (directText && directText.length > 0 && directText !== 'Collection') {
+                rawText = directText;
+            }
+        }
         
-        console.log(`ENTERPRISE: Raw collection text: '${rawText}'`);
-        
-        // Clean the text first
+        if (!rawText || rawText === 'Unknown' || rawText === '') {
+            return "";  // Return empty so ITYPE fallback triggers
+        }
         var cleaned = springyMap.cleanText(rawText);
-        console.log(`ENTERPRISE: Cleaned collection text: '${cleaned}'`);
-        
-        // Try to match against valid collection names
         var validCollections = Object.keys(springyMap.siteConfig.validCollectionNameMap);
         
-        // First, try exact match
+        // Step 1: Exact match
         if (springyMap.siteConfig.validCollectionNameMap[cleaned]) {
-            console.log(`ENTERPRISE: Exact collection match found: '${cleaned}'`);
             return cleaned;
         }
         
-        // If no exact match, try to find a valid collection that's contained in the text
+        // Step 2: Partial match from start of string
         for (var i = 0; i < validCollections.length; i++) {
             var validCollection = validCollections[i];
             if (cleaned.indexOf(validCollection) === 0) {
-                console.log(`ENTERPRISE: Partial collection match found: '${validCollection}' from '${cleaned}'`);
                 return validCollection;
             }
         }
         
-        // If still no match, try case-insensitive partial matching
+        // Step 3: Case-insensitive match from start
         var lowerCleaned = cleaned.toLowerCase();
         for (var j = 0; j < validCollections.length; j++) {
             var validCollection = validCollections[j];
             if (lowerCleaned.indexOf(validCollection.toLowerCase()) === 0) {
-                console.log(`ENTERPRISE: Case-insensitive collection match found: '${validCollection}' from '${cleaned}'`);
                 return validCollection;
             }
         }
-        
-        console.log(`ENTERPRISE: No collection match found for: '${cleaned}'`);
-        return cleaned; // Return the cleaned version even if no match
+        return cleaned;
     },
     
     normalizeLocationForService: function(location) {
-        // Map internal location names to what the Springs service expects
         var locationMap = {
             'David O. McKay Library': 'McKay Library',
             'David O McKay Library': 'McKay Library',
@@ -727,7 +389,6 @@ var springyMap = {
         };
         
         var normalized = locationMap[location] || location;
-        console.log(`ENTERPRISE: Location normalized from '${location}' to '${normalized}'`);
         return normalized;
     },
     
@@ -736,7 +397,6 @@ var springyMap = {
         style.type = "text/css";
         style.innerText = css;
         head.insertBefore(style, head.firstChild);
-        console.log("ENTERPRISE: Styles injected");
     },
     
     createModal: function(item, params) {
@@ -750,13 +410,12 @@ var springyMap = {
     createIcon: function() {
         var iconSvg = springyMap.siteConfig.button.icon;
         if (iconSvg.length === 0) return null;
-        
         return (new DOMParser()).parseFromString(iconSvg, "application/xml").documentElement;
     },
     
     createKeyHandler: function() {
         return function(event) {
-            if (event.keyCode === 13) { // Enter key
+            if (event.keyCode === 13) {
                 event.stopPropagation();
                 this.click();
             }
@@ -768,17 +427,16 @@ var springyMap = {
             event.preventDefault();
             event.stopPropagation();
             
+            // LOG THE EXACT PARAMETERS BEING SENT
             if (!item.modal) {
                 var modalDiv = springyMap.createModal(item, params);
                 item.modal = document.body.appendChild(modalDiv);
                 
-                // Close button handler
                 item.modal.querySelector(".springy-close").addEventListener("click", function() {
                     item.modal.querySelector(".springy-underlay").classList.remove("springy-underlay-active");
                     item.modal.querySelector(".springy-modal").classList.remove("springy-modal-active");
                 });
                 
-                // Print button handler
                 item.modal.querySelector(".springy-print").addEventListener("click", function() {
                     window.open(
                         springyMap.siteConfig.domain + "/libmaps/call/print?" + params.toString(),
@@ -794,8 +452,6 @@ var springyMap = {
     },
     
     createButton: function(item) {
-        console.log("ENTERPRISE: Creating button for:", item.call);
-        
         var icon = springyMap.createIcon();
         var label = document.createTextNode(springyMap.siteConfig.button.label);
         var params = new URLSearchParams();
@@ -804,7 +460,6 @@ var springyMap = {
         params.set("location", springyMap.normalizeLocationForService(item.location));
         params.set("collection", item.collection || "");
         params.set("title", item.title || "");
-        
         if (springyMap.siteConfig.isModalWanted) {
             var button = document.createElement("button");
             button.setAttribute("type", "button");
@@ -838,61 +493,38 @@ var springyMap = {
     },
     
     isValidLocation: function(location) {
-        if (springyMap.siteConfig.isUsingFixedLocation) {
-            return true;
-        }
+        if (springyMap.siteConfig.isUsingFixedLocation) return true;
+        if (!location || location.length === 0) return false;
         
-        if (!location || location.length === 0) {
-            return false;
-        }
-        
-        // Normalize location name for comparison
         var normalizedLocation = location.trim();
         var isValid = springyMap.siteConfig.validLocationNameMap[normalizedLocation] === true;
-        
-        console.log(`ENTERPRISE: Location validation - '${normalizedLocation}': ${isValid}`);
-        
         if (!isValid) {
-            console.log("ENTERPRISE: Available locations:", Object.keys(springyMap.siteConfig.validLocationNameMap));
         }
         
         return isValid;
     },
     
     isValidCollection: function(collection) {
-        if (!springyMap.siteConfig.isValidCollectionRequired) {
-            return true;
-        }
-        
+        if (!springyMap.siteConfig.isValidCollectionRequired) return true;
         if (!collection || collection.length === 0) {
-            console.log("ENTERPRISE: Collection validation failed - empty collection");
             return false;
         }
         
         var normalizedCollection = collection.trim();
         var isValid = springyMap.siteConfig.validCollectionNameMap[normalizedCollection] === true;
-        
-        console.log(`ENTERPRISE: Collection validation - '${normalizedCollection}': ${isValid}`);
-        
         if (!isValid) {
-            console.log("ENTERPRISE: Available collections:", Object.keys(springyMap.siteConfig.validCollectionNameMap));
         }
         
         return isValid;
     },
     
     setupButtons: function(items) {
-        console.log(`ENTERPRISE: Setting up buttons for ${items.length} items`);
-        
-        for (let i = 0; i < items.length; i++) {
+        for (var i = 0; i < items.length; i++) {
             var item = items[i];
             
             if (item.call.length !== 0 && 
                 springyMap.isValidLocation(item.location) && 
                 springyMap.isValidCollection(item.collection)) {
-                
-                console.log(`ENTERPRISE: Creating button for item ${i + 1}`);
-                
                 var button = springyMap.createButton(item);
                 var buttonDiv = document.createElement("div");
                 buttonDiv.classList.add("springy-button-div");
@@ -900,7 +532,6 @@ var springyMap = {
                 
                 springyILS.attachButton(item, buttonDiv);
             } else {
-                console.log(`ENTERPRISE: Skipping item ${i + 1} - validation failed`);
             }
         }
     },
@@ -909,7 +540,7 @@ var springyMap = {
         var items = [];
         var elements = document.querySelectorAll(".libmaps-button:not(.libmaps-proc), .libmap-button:not(.libmaps-proc)");
         
-        for (let i = 0; i < elements.length; i++) {
+        for (var i = 0; i < elements.length; i++) {
             var element = elements[i];
             element.classList.add("libmaps-proc");
             
@@ -932,58 +563,55 @@ var springyMap = {
     },
     
     scrape: function() {
-        debugLog("Starting scrape process");
-        debugLog("Generic scrape wanted: " + springyMap.siteConfig.isGenericScrapeWanted);
-        
         var items = springyMap.siteConfig.isGenericScrapeWanted ? 
                    springyMap.scrapeDomGeneric() : 
                    springyILS.scrapeDom();
-        
-        debugLog("Found " + items.length + " items to process");
-        
         springyMap.setupButtons(items);
-        debugLog("Scrape completed successfully");
-        
         return items;
     },
     
     watch: function() {
-        debugLog("Starting DOM watcher");
-        
         var attempts = 0;
-        var maxAttempts = isMobileDevice ? 60 : 30; // More attempts for mobile
-        var interval = isMobileDevice ? 750 : 500; // Longer intervals for mobile
-        
-        debugLog("Watcher config - maxAttempts: " + maxAttempts + ", interval: " + interval);
+        var maxAttempts = isMobileDevice ? 60 : 30;
+        var interval = isMobileDevice ? 750 : 500;
         
         var watcher = setInterval(function() {
             attempts++;
-            debugLog("Watch attempt " + attempts + "/" + maxAttempts);
-            
-            // Try multiple selectors to find target elements
             var targetElement = document.querySelector(".detailItemsTableRow") ||
                               document.querySelector("tbody .detailItemsTableRow") ||
-                              document.querySelector(".detailItemsTable") ||
-                              document.querySelector(".detailItems") ||
-                              document.querySelector("[class*='detailItems']");
+                              document.querySelector(".detailItemsTable");
             
             if (targetElement) {
-                debugLog("Target elements found, initializing scrape");
+                // CHECK: Are async fields still loading?
+                var inProgressFields = document.querySelectorAll('.asyncInProgressSD_HZN_COLLECTION, .asyncInProgressLIBRARY, .asyncInProgressSD_ITEM_STATUS');
+                var stillLoading = false;
+                
+                for (var i = 0; i < inProgressFields.length; i++) {
+                    var field = inProgressFields[i];
+                    // Check if the field is visible (not replaced by actual data)
+                    if (!field.classList.contains('hidden') && field.textContent.includes('Searching')) {
+                        stillLoading = true;
+                        break;
+                    }
+                }
+                
+                if (stillLoading && attempts < maxAttempts) {
+                    // Keep waiting for async to complete
+                    return;
+                }
+                
                 clearInterval(watcher);
                 
-                // Longer delay for mobile to ensure rendering is complete
-                var renderDelay = isMobileDevice ? 1500 : 750;
+                // Extra delay to ensure async fields have populated
+                var renderDelay = isMobileDevice ? 2000 : 1000;
                 setTimeout(function() {
                     springyMap.scrape();
                 }, renderDelay);
                 
             } else if (attempts >= maxAttempts) {
-                debugLog("Watch timeout - target elements not found after " + maxAttempts + " attempts");
                 clearInterval(watcher);
                 
-                // Try one more time with generic scraping
                 setTimeout(function() {
-                    debugLog("Attempting generic scrape as fallback");
                     springyMap.siteConfig.isGenericScrapeWanted = true;
                     springyMap.scrape();
                 }, isMobileDevice ? 2000 : 1000);
@@ -992,48 +620,58 @@ var springyMap = {
     }
 };
 
-// Configuration and initialization with multiple DOM ready strategies
+// Configuration - COMPREHENSIVE COLLECTION MAP
 (function() {
-    debugLog("Configuring Springs Lib Maps integration");
-    
     springyMap.siteConfig = {
         domain: 'https://byui.libcal.com',
         iid: 4251,
         isUsingFixedLocation: 0,
         isValidCollectionRequired: 1,
         
-        // Updated location mapping to handle potential variations
-        // We accept these location names from the DOM extraction
         validLocationNameMap: {
             'David O. McKay Library': true,
             'McKay Library': true,
-            'David O McKay Library': true // Alternative without periods
+            'David O McKay Library': true
         },
         
-        // Comprehensive collection mapping
+        // COMPREHENSIVE collection mapping - matches both the production and source
         validCollectionNameMap: {
+            // Standard collections
             'Audio Books': true,
+            'CD': true,
             'CDs': true,
             'Double Oversize Books': true,
+            'DVD': true,
             'DVDs': true,
             'General Books': true,
             'General Books - 1st Floor': true,
+            'Juvenile Literature': true,
             'Juvenile Books': true,
+            'LP Records - Special Collections': true,
+            'Map': true,
+            'Microfilm - Special Collections': true,
+            'Manuscripts - Special Collections': true,
             'Oversize Books': true,
+            'Oversize Juvenile': true,
             'Oversize Juvenile Books': true,
             'Popular Books': true,
+            'Reserve Area': true,
             'Reserve Books': true,
             'Sheet Music': true,
+            
+            // Special Collections variations
+            'SP+ Special Collections Oversized': true,
             'Special Coll.': true,
-            'Special Coll.-Oversized': true,
             'Special Coll.-Campus Authors': true,
             'Special Coll.-Caxton Press': true,
             'Special Coll.-Church History': true,
-            'Special Coll.-Church History': true,
             'Special Coll.-Education Collection': true,
             'Special Coll.-Family History Books': true,
+            'Special Coll.-Greater Yellowstone Ecosystem': true,
             'Special Coll.-Hinckley Music': true,
+            'Special Coll.-Hinckley Music Collection': true,
             'Special Coll.-Historical Literature': true,
+            'Special Coll.-Historical Literature and Reference': true,
             'Special Coll.-LP Records': true,
             'Special Coll.-Manuscripts': true,
             'Special Coll.-Maps': true,
@@ -1044,7 +682,11 @@ var springyMap = {
             'Special Coll.-Scriptures': true,
             'Special Coll.-Upper Snake River Valley History': true,
             'Special Coll.-Vardis Fisher': true,
+            'Special Collections': true,
+            
+            // Other
             'Teacher Learning Center': true,
+            'Technical Services': true,
             'Technical ServicesBooks': true,
             'Univ. Archives-Campus Publications': true,
             'Univ. Archives-Campus Speeches': true
@@ -1060,85 +702,44 @@ var springyMap = {
         isGenericScrapeWanted: 0,
         
         getModalHtml: function(item, url) {
-            return `<div class="springy-underlay"><div class="springy-modal" data-location="${item.location}" data-zone="${item.zone}" data-call="${item.call}" tabindex="0"><div class="springy-header"><h1>${item.title}</h1><div class="springy-header-buttons"><button class="springy-print" aria-label="Print Map"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64 32l32 0c17.7 0 32-14.3 32-32l0-96c0-35.3-28.7-64-64-64L64 192c-35.3 0-64 28.7-64 64l0 96c0 17.7 14.3 32 32 32l32 0 0 64c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-64zM432 248a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg></button><button class="springy-close" aria-label="Close" data-placement="bottom"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/></svg></button></div></div><div class="springy-content"><iframe title="Map Image" src="${url}" style="position: relative; width: 100%; height: 100%; border: none;"></iframe></div></div></div>`;
+            return '<div class="springy-underlay"><div class="springy-modal" data-location="' + item.location + '" data-zone="' + (item.zone || '') + '" data-call="' + item.call + '" tabindex="0"><div class="springy-header"><h1>' + item.title + '</h1><div class="springy-header-buttons"><button class="springy-print" aria-label="Print Map"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64 32l32 0c17.7 0 32-14.3 32-32l0-96c0-35.3-28.7-64-64-64L64 192c-35.3 0-64 28.7-64 64l0 96c0 17.7 14.3 32 32 32l32 0 0 64c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-64zM432 248a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg></button><button class="springy-close" aria-label="Close" data-placement="bottom"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/></svg></button></div></div><div class="springy-content"><iframe title="Map Image" src="' + url + '" style="position: relative; width: 100%; height: 100%; border: none;"></iframe></div></div></div>';
         },
         
         css: '.springy-button-div { display: inline-block; } .springy-button { text-indent: 0; cursor: pointer; position: relative; padding: 6px 12px 6px 6px; box-sizing: border-box; border-width: 0; border-radius: 6px; color: #FFFFFF; background-color: #337AB7; display: inline-block; white-space: nowrap; line-height: 16px; } a.springy-button { color: #FFFFFF; text-decoration: none; } .springy-button:hover { color: #FFFFFF; background-color: #286090; } a.springy-button:hover { color: #FFFFFF; background-color: #286090; } .springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } a.springy-button:focus { color: #FFFFFF; background-color: #286090; opacity: 80%; box-shadow: none; } .springy-icon { padding-right: 4px; background-repeat: no-repeat; display: inline-block; vertical-align: middle; fill: currentColor; height: 16px; width: 16px; min-height: 16px; min-width: 16px; } .springy-underlay { padding: 0; top: 0; left: 0; width: 100%; height: 100%; display: none; background-color: rgba(0, 0, 0, .5); flex-direction: column; align-items: center; } .springy-underlay-active { display: flex; position: fixed; z-index: 30000; } .springy-modal { font-family: Arial, Helvetica, Verdana; display: flex; flex-direction: column; overflow-y: auto; width: 80%; max-width: 1200px; height: 90vh; margin-top: 3vh; background-color: #fff; border-radius: 5px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); opacity: 0; } .springy-modal-active { opacity: 1; } .springy-header { display: flex; justify-content: space-between; border-bottom: 1px solid #d6d6d6; margin-bottom: 10px; margin-top: 14px; } .springy-header h1 { margin: 0 0 12px 12px; font-size: 24px; max-width: 80%; padding: 0; } .springy-header-buttons { margin-right: 12px; height: 100%; } .springy-header-buttons button { vertical-align: middle; padding: 2px 14px; margin-left: 6px; height: unset; border: none; background: none; color: rgb(51, 51, 51); } .springy-header-buttons button:hover { background: rgba(0,0,0,.07); box-shadow: 0 0 1px 1px rgba(0,0,0,.14) } .springy-header-buttons svg { width: 16px; height: 16px; vertical-align: -0.125em; } .springy-content { display: flex; flex-grow: 1; } .springy-directions-email-form button, .springy-directions-email-result { margin-left: 10px; }'
     };
     
     function initializeLibMaps() {
-        debugLog("🚀 INIT: Initializing LibMaps");
-        debugLog("📄 INIT: Document ready state: " + document.readyState);
-        debugLog("📱 INIT: Mobile device: " + isMobileDevice);
-        debugLog("🔗 INIT: Current URL: " + window.location.href);
-        debugLog("📏 INIT: Viewport: " + window.innerWidth + "x" + window.innerHeight);
-        
-        // Quick DOM check
-        var totalElements = document.querySelectorAll('*').length;
-        var callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER').length;
-        var libraryElements = document.querySelectorAll('.detailItemsTable_LIBRARY').length;
-        
-        debugLog("🔍 INIT: DOM elements - Total: " + totalElements + ", Call: " + callElements + ", Library: " + libraryElements);
-        
-        debugLog("🎨 INIT: Injecting styles");
         springyMap.injectStyles(document.head, springyMap.siteConfig.css);
-        
-        debugLog("⏰ INIT: Starting watcher");
         springyMap.watch();
-        
-        debugLog("✅ INIT: Integration initialized successfully");
     }
     
-    // Multiple DOM ready strategies for better mobile compatibility
     function domReady(callback) {
         if (document.readyState === 'loading') {
-            debugLog("Document still loading, adding event listeners");
-            
             var fired = false;
             
-            // Strategy 1: DOMContentLoaded
             document.addEventListener('DOMContentLoaded', function() {
-                if (!fired) {
-                    fired = true;
-                    debugLog("DOM ready via DOMContentLoaded");
-                    callback();
-                }
+                if (!fired) { fired = true; callback(); }
             });
             
-            // Strategy 2: readystatechange
             document.addEventListener('readystatechange', function() {
                 if (!fired && (document.readyState === 'interactive' || document.readyState === 'complete')) {
-                    fired = true;
-                    debugLog("DOM ready via readystatechange: " + document.readyState);
-                    callback();
+                    fired = true; callback();
                 }
             });
             
-            // Strategy 3: window.onload as final fallback
             window.addEventListener('load', function() {
-                if (!fired) {
-                    fired = true;
-                    debugLog("DOM ready via window.onload (fallback)");
-                    callback();
-                }
+                if (!fired) { fired = true; callback(); }
             });
             
-            // Strategy 4: Timeout fallback for mobile devices
             if (isMobileDevice) {
                 setTimeout(function() {
-                    if (!fired) {
-                        fired = true;
-                        debugLog("DOM ready via timeout fallback (mobile)");
-                        callback();
-                    }
+                    if (!fired) { fired = true; callback(); }
                 }, 3000);
             }
         } else {
-            debugLog("Document already ready: " + document.readyState);
             callback();
         }
     }
     
-    // Initialize when DOM is ready
     domReady(initializeLibMaps);
 })();

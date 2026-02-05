@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-02-05
+
+### 🚀 Production Release
+- **Production files updated**: `maps.js` and `maps.min.js` now include the ITYPE-first collection extraction fix
+- Debug code removed from production files while preserving all functionality
+
+### 📁 Files Updated
+- `maps.js` - Production version (739 lines, debug code removed)
+- `maps.min.js` - Minified production version
+
+---
+
 ## [2.3.0] - 2026-02-04
 
 ### 🎯 Major Fix
