@@ -19,14 +19,12 @@ var processedItems = new Set();
 function createDebugOverlay() {
     var debugDiv = document.createElement('div');
     debugDiv.id = 'pullrequest-test-debug';
-    debugDiv.style.cssText = 'position:fixed;bottom:10px;left:10px;background:rgba(0,0,50,0.95);color:#00bfff;padding:15px;font-family:monospace;font-size:11px;z-index:999998;border:3px solid #0066ff;max-height:250px;max-width:350px;overflow-y:auto;border-radius:8px;box-shadow:0 0 20px rgba(0,102,255,0.5);';
-    debugDiv.innerHTML = '<strong style="color:#ffff00;">📦 PULL REQUESTS TEST</strong><br>';
-    debugDiv.innerHTML += '<div style="color:#00ffff;">Loaded: ' + new Date().toLocaleTimeString() + '</div>';
-    debugDiv.innerHTML += '<div style="color:#00ffff;">Mobile: ' + isMobileDevice + '</div>';
+    debugDiv.style.cssText = 'position:fixed;top:5px;left:5px;background:rgba(0,0,80,0.95);color:#00bfff;padding:8px;font-family:monospace;font-size:9px;z-index:999998;border:2px solid #0066ff;max-height:100px;max-width:280px;overflow-y:auto;border-radius:4px;';
+    debugDiv.innerHTML = '<strong style="color:#ffff00;">📦 PR v2.4</strong>';
     
     var closeBtn = document.createElement('span');
     closeBtn.innerHTML = ' ❌';
-    closeBtn.style.cssText = 'position:absolute;top:5px;right:10px;cursor:pointer;color:#fff;font-size:14px;';
+    closeBtn.style.cssText = 'position:absolute;top:2px;right:4px;cursor:pointer;color:#fff;font-size:10px;';
     closeBtn.onclick = function() { debugDiv.style.display = 'none'; };
     debugDiv.querySelector('strong').appendChild(closeBtn);
     

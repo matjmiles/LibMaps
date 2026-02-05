@@ -1,6 +1,10 @@
 // sirsiDynix Enterprise - Springs Lib Maps Integration
 // Production Version with ITYPE-first Collection Extraction
 // Date: 2026-02-05
+// IIFE wrapper to prevent global variable conflicts with other scripts
+
+(function() {
+'use strict';
 
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -621,8 +625,7 @@ var springyMap = {
 };
 
 // Configuration - COMPREHENSIVE COLLECTION MAP
-(function() {
-    springyMap.siteConfig = {
+springyMap.siteConfig = {
         domain: 'https://byui.libcal.com',
         iid: 4251,
         isUsingFixedLocation: 0,

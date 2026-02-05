@@ -1,11 +1,13 @@
 // sirsiDynix Enterprise - Springs Lib Maps Integration
 // TEST VERSION - Full debugging enabled
-// Date: 2026-02-04
-// Purpose: Debug wrong location navigation issue
+// Date: 2026-02-05
+// Version: 2.4.0-test
+// IIFE wrapper to prevent global variable conflicts with other scripts
 
-console.log("==============================================");
-console.log("LIBMAPS TEST VERSION - Debug Mode ENABLED");
-console.log("==============================================");
+(function() {
+'use strict';
+
+console.log("=== LIBMAPS v2.4.1-test ===");
 
 // Mobile detection and debugging setup
 var isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -15,15 +17,13 @@ var debugMode = true; // ENABLED for testing
 function createTestOverlay() {
     var debugDiv = document.createElement('div');
     debugDiv.id = 'libmaps-test-debug';
-    debugDiv.style.cssText = 'position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.95);color:#00ff00;padding:15px;font-family:monospace;font-size:11px;z-index:999999;border:3px solid #00ff00;max-height:300px;max-width:400px;overflow-y:auto;border-radius:8px;box-shadow:0 0 20px rgba(0,255,0,0.5);';
-    debugDiv.innerHTML = '<strong style="color:#ffff00;">🗺️ LIBMAPS TEST DEBUG</strong><br>';
-    debugDiv.innerHTML += '<div style="color:#00ffff;">Loaded at: ' + new Date().toLocaleTimeString() + '</div>';
-    debugDiv.innerHTML += '<div style="color:#00ffff;">Mobile: ' + isMobileDevice + '</div>';
+    debugDiv.style.cssText = 'position:fixed;top:5px;right:5px;background:rgba(0,80,0,0.95);color:#00ff00;padding:8px;font-family:monospace;font-size:9px;z-index:999999;border:2px solid #00ff00;max-height:100px;max-width:280px;overflow-y:auto;border-radius:4px;';
+    debugDiv.innerHTML = '<strong style="color:#ffff00;">🗺️ v2.4.1</strong>';
     
     // Close button
     var closeBtn = document.createElement('span');
     closeBtn.innerHTML = ' ❌';
-    closeBtn.style.cssText = 'position:absolute;top:5px;right:10px;cursor:pointer;color:#fff;font-size:14px;';
+    closeBtn.style.cssText = 'position:absolute;top:2px;right:4px;cursor:pointer;color:#fff;font-size:10px;';
     closeBtn.onclick = function() { debugDiv.style.display = 'none'; };
     debugDiv.querySelector('strong').appendChild(closeBtn);
     
@@ -277,7 +277,97 @@ var springyILS = {
     },
 
     scrapeMobileCallNumbers: function(items) {
-        debugLog("🔍 MOBILE: Starting mobile-specific call number detection");
+        debugLog("🔍 MOBILE: Starting mobile scrape v2.4.1");
+        
+        // Debug: Show what's actually in the DOM - find ANY availability content
+        var detailItemsList = document.querySelector('.detailItemsList');
+        var detailItemsTable = document.querySelector('.detailItemsTable');
+        var listItems = document.querySelectorAll('.detailItemsListItem');
+        var tableRows = document.querySelectorAll('.detailItemsTableRow');
+        
+        debugLog("📱 DOM: list=" + !!detailItemsList + " table=" + !!detailItemsTable);
+        debugLog("📱 DOM: listItems=" + listItems.length + " tableRows=" + tableRows.length);
+        
+        // Try to find ANY element with 'detail' or 'availability' in class
+        var allElements = document.querySelectorAll('[class*="detail"], [class*="avail"], [class*="item"]');
+        debugLog("📱 Elements with detail/avail/item: " + allElements.length);
+        
+        // Show first few class names to understand structure
+        var classNames = [];
+        for (var i = 0; i < Math.min(allElements.length, 5); i++) {
+            classNames.push(allElements[i].className.substring(0, 40));
+        }
+        debugLog("📱 Classes: " + classNames.join(' | '));
+        
+        // Try mobile list structure first
+        if (listItems.length > 0) {
+            debugLog("📱 Using detailItemsListItem structure");
+            for (var j = 0; j < listItems.length; j++) {
+                var listItem = listItems[j];
+                var spans = listItem.querySelectorAll('span');
+                var callNumber = '';
+                var library = '';
+                var itypeValue = '';
+                var sdHznValue = '';
+                
+                spans.forEach(function(span) {
+                    var className = span.className || '';
+                    var text = span.textContent.trim();
+                    
+                    if (className.indexOf('CALLNUMBER') !== -1) {
+                        callNumber = text;
+                    }
+                    if (className.indexOf('LIBRARY') !== -1 && className.indexOf('asyncField') !== -1) {
+                        library = text;
+                    }
+                    if (className.indexOf('ITYPE') !== -1) {
+                        itypeValue = text;
+                    }
+                    if (className.indexOf('SD_HZN_COLLECTION') !== -1) {
+                        sdHznValue = text;
+                    }
+                });
+                
+                // Get library from async field if not found
+                if (!library) {
+                    var libEl = listItem.querySelector('.asyncFieldLIBRARY');
+                    if (libEl) library = libEl.textContent.trim();
+                }
+                
+                debugLog("📱 Item " + (j+1) + ": call='" + callNumber + "' lib='" + library + "' itype='" + itypeValue + "'");
+                
+                // Use ITYPE first, then SD_HZN_COLLECTION
+                var collection = '';
+                if (itypeValue && itypeValue !== '' && itypeValue !== '-' && itypeValue !== 'Searching...') {
+                    collection = itypeValue;
+                } else if (sdHznValue && sdHznValue !== '' && sdHznValue !== '-' && sdHznValue !== 'Searching...' && sdHznValue !== 'Unknown') {
+                    collection = sdHznValue;
+                }
+                
+                if (callNumber && library && callNumber.length > 2) {
+                    var isValidLoc = springyMap.isValidLocation(library);
+                    var isValidColl = springyMap.isValidCollection(collection);
+                    debugLog("📱 Validation: loc=" + isValidLoc + " coll=" + isValidColl + " ('" + collection + "')");
+                    
+                    if (isValidLoc && isValidColl) {
+                        var itemKey = (callNumber + '|' + library + '|' + collection).toLowerCase();
+                        if (!springyILS.processedItems.has(itemKey)) {
+                            springyILS.processedItems.add(itemKey);
+                            items.push({
+                                element: listItem,
+                                buttonElement: listItem,
+                                location: library,
+                                call: callNumber,
+                                title: document.title,
+                                collection: collection
+                            });
+                            debugLog("✅ MOBILE: Added item: " + callNumber);
+                        }
+                    }
+                }
+            }
+            return items;
+        }
         
         var callElements = document.querySelectorAll('.detailItemsTable_CALLNUMBER:not(.libmaps-processed)');
         debugLog("🔍 MOBILE: Found " + callElements.length + " unprocessed call elements");
@@ -764,22 +854,23 @@ var springyMap = {
     },
     
     scrape: function() {
-        debugLog("Starting scrape process");
+        debugLog("🚀 SCRAPE START - isMobile=" + isMobileDevice);
+        debugLog("isGenericScrapeWanted=" + springyMap.siteConfig.isGenericScrapeWanted);
         
         var items = springyMap.siteConfig.isGenericScrapeWanted ? 
                    springyMap.scrapeDomGeneric() : 
                    springyILS.scrapeDom();
         
-        debugLog("Found " + items.length + " items to process");
+        debugLog("Found " + items.length + " items");
         
         springyMap.setupButtons(items);
-        debugLog("✅ Scrape completed successfully");
+        debugLog("✅ Done");
         
         return items;
     },
     
     watch: function() {
-        debugLog("Starting DOM watcher");
+        debugLog("Starting watcher");
         
         var attempts = 0;
         var maxAttempts = isMobileDevice ? 60 : 30;
@@ -840,10 +931,9 @@ var springyMap = {
 };
 
 // Configuration - COMPREHENSIVE COLLECTION MAP
-(function() {
-    debugLog("Configuring Springs Lib Maps integration - TEST VERSION");
-    
-    springyMap.siteConfig = {
+debugLog("Configuring Springs Lib Maps integration - TEST VERSION");
+
+springyMap.siteConfig = {
         domain: 'https://byui.libcal.com',
         iid: 4251,
         isUsingFixedLocation: 0,
