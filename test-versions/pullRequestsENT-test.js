@@ -20,7 +20,7 @@ function createDebugOverlay() {
     var debugDiv = document.createElement('div');
     debugDiv.id = 'pullrequest-test-debug';
     debugDiv.style.cssText = 'position:fixed;top:5px;left:5px;background:rgba(0,0,80,0.95);color:#00bfff;padding:8px;font-family:monospace;font-size:9px;z-index:999998;border:2px solid #0066ff;max-height:100px;max-width:280px;overflow-y:auto;border-radius:4px;';
-    debugDiv.innerHTML = '<strong style="color:#ffff00;">📦 PR v2.4</strong>';
+    debugDiv.innerHTML = '<strong style="color:#ffff00;">📦 PR v2.4.3</strong>';
     
     var closeBtn = document.createElement('span');
     closeBtn.innerHTML = ' ❌';

@@ -19,7 +19,7 @@ function createTestOverlay() {
     var debugDiv = document.createElement('div');
     debugDiv.id = 'libmaps-test-debug';
     debugDiv.style.cssText = 'position:fixed;top:5px;right:5px;background:rgba(0,80,0,0.95);color:#00ff00;padding:8px;font-family:monospace;font-size:9px;z-index:999999;border:2px solid #00ff00;max-height:100px;max-width:280px;overflow-y:auto;border-radius:4px;';
-    debugDiv.innerHTML = '<strong style="color:#ffff00;">🗺️ v2.4.2 ' + mobileFlag + '</strong>';
+    debugDiv.innerHTML = '<strong style="color:#ffff00;">🗺️ v2.4.3 ' + mobileFlag + '</strong>';
     
     // Close button
     var closeBtn = document.createElement('span');
