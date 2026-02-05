@@ -883,7 +883,10 @@ var springyMap = {
             
             var targetElement = document.querySelector(".detailItemsTableRow") ||
                               document.querySelector("tbody .detailItemsTableRow") ||
-                              document.querySelector(".detailItemsTable");
+                              document.querySelector(".detailItemsTable") ||
+                              document.querySelector(".detailItemsList") ||
+                              document.querySelector(".detailItemsListItem") ||
+                              document.querySelector(".asyncFieldSD_ITEM_STATUS");
             
             if (targetElement) {
                 debugLog("✅ Target elements found");
