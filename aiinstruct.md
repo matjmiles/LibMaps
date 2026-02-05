@@ -160,16 +160,41 @@ Setting up buttons for 0 items
    - Both scripts watch for DOM changes
    - One may be modifying the DOM before the other can process it
 
-## Next Steps to Try
+## Solution: Fix for Mobile Watcher Timeout (v2.4.3)
+**Date**: February 5, 2026
+**Model**: Gemini 3 Pro (Preview)
 
-1. **Add `isMobileDevice` value to overlay output** - Verify mobile detection is working
-2. **Add timing/sequence logging** - See which script runs first
-3. **Check if `scrapeDetailRows` is being called at all** - May be blocked earlier
-4. **Inspect raw DOM on mobile** - Use remote debugging or more verbose logging
-5. **Check for JavaScript errors** - Mobile Safari may have different error handling
-6. **Test with only LibMaps loaded** - Disable pullRequestsENT temporarily to isolate issue
+The issue was resolved by identifying that the `springyMap.watch()` function was waiting for desktop-specific DOM elements (`.detailItemsTableRow`) which do NOT exist on the mobile version of the catalog. Because these elements were never found, the watcher would timeout and incorrectly fall back to a generic scraping mode or fail entirely.
 
-## Regeneration Commands
+### The Fix
+The `watch` function was updated to specifically look for mobile DOM elements:
+- `.detailItemsList`
+- `.detailItemsListItem`
+- `.asyncFieldSD_ITEM_STATUS`
+
+**Code Change in `test-versions/maps-test.js`**:
+
+```javascript
+// Updated watcher query arguments to include mobile elements
+var targetElement = document.querySelector(".detailItemsTableRow") ||
+                    document.querySelector("tbody .detailItemsTableRow") ||
+                    document.querySelector(".detailItemsTable") ||
+                    // NEW: Mobile specific selectors
+                    document.querySelector(".detailItemsList") ||
+                    document.querySelector(".detailItemsListItem") ||
+                    document.querySelector(".asyncFieldSD_ITEM_STATUS");
+```
+
+### Instructions for Future AI Models
+If the "Map It" button disappears on mobile again:
+1. **Check the Watcher**: Ensure `springyMap.watch()` is looking for elements that actually exist in the mobile DOM (`.detailItemsListItem`).
+2. **Verify IIFE**: Confirm all scripts are wrapped in `(function() { 'use strict'; ... })();` to prevent global variable collisions (like `isMobileDevice`).
+3. **Debug Overlays**: Use small, top-positioned debug overlays with version numbers to verify the correct file is loaded on mobile devices (where console access is difficult).
+4. **Mobile Detection**: Explicitly validatate `isMobileDevice` regex is working.
+
+## Final Regeneration Commands
+To apply these changes to production:
+
 ```powershell
 # Regenerate minified test files
 npx terser "test-versions/maps-test.js" -o "test-versions/maps.min.test.js" --compress --mangle
